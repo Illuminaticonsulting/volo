@@ -8,19 +8,18 @@ import json
 import uuid
 from datetime import datetime
 
-from fastapi import APIRouter, Request
+from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel
 from typing import Optional
 from sqlalchemy import select
 
 from app.agent.orchestrator import AgentOrchestrator
+from app.auth import get_current_user, CurrentUser
 from app.database import async_session, Conversation, ChatMessage
 
 router = APIRouter()
 orchestrator = AgentOrchestrator()
-
-DEFAULT_USER = "dev-user"
 
 
 class ChatRequest(BaseModel):
@@ -30,7 +29,7 @@ class ChatRequest(BaseModel):
 
 
 @router.post("/chat")
-async def chat(request: ChatRequest):
+async def chat(request: ChatRequest, current_user: CurrentUser = Depends(get_current_user)):
     """
     Main chat endpoint. Streams agent responses as Server-Sent Events.
     Persists both user message and assistant response to the database.
@@ -47,7 +46,7 @@ async def chat(request: ChatRequest):
         if not conv:
             conv = Conversation(
                 id=conversation_id,
-                user_id=DEFAULT_USER,
+                user_id=current_user.user_id,
                 title=request.message[:60] or "New Conversation",
             )
             session.add(conv)

@@ -7,16 +7,15 @@ import uuid
 from datetime import datetime
 from typing import Optional
 
-from fastapi import APIRouter, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy import select, func, delete as sa_delete
 from sqlalchemy.orm import selectinload
 
+from app.auth import get_current_user, CurrentUser
 from app.database import async_session, Conversation, ChatMessage
 
 router = APIRouter()
-
-DEFAULT_USER = "dev-user"
 
 
 class CreateConversationRequest(BaseModel):
@@ -55,10 +54,11 @@ async def list_conversations(
     limit: int = Query(50, ge=1, le=200),
     offset: int = Query(0, ge=0),
     search: Optional[str] = None,
+    current_user: CurrentUser = Depends(get_current_user),
 ):
     """List all conversations, optionally filtered by search."""
     async with async_session() as session:
-        query = select(Conversation).where(Conversation.user_id == DEFAULT_USER)
+        query = select(Conversation).where(Conversation.user_id == current_user.user_id)
 
         if search:
             query = query.where(Conversation.title.ilike(f"%{search}%"))
@@ -85,11 +85,11 @@ async def list_conversations(
 
 
 @router.post("/conversations")
-async def create_conversation(body: CreateConversationRequest):
+async def create_conversation(body: CreateConversationRequest, current_user: CurrentUser = Depends(get_current_user)):
     """Create a new conversation."""
     async with async_session() as session:
         conv = Conversation(
-            user_id=DEFAULT_USER,
+            user_id=current_user.user_id,
             title=body.title or "New Conversation",
         )
         session.add(conv)
@@ -159,7 +159,7 @@ async def update_conversation(conversation_id: str, body: CreateConversationRequ
 
 
 @router.post("/conversations/{conversation_id}/messages")
-async def add_message(conversation_id: str, request: dict):
+async def add_message(conversation_id: str, request: dict, current_user: CurrentUser = Depends(get_current_user)):
     """Add a message to a conversation (used internally by chat)."""
     async with async_session() as session:
         result = await session.execute(
@@ -170,7 +170,7 @@ async def add_message(conversation_id: str, request: dict):
         if not conv:
             conv = Conversation(
                 id=conversation_id,
-                user_id=DEFAULT_USER,
+                user_id=current_user.user_id,
                 title=request.get("content", "")[:50] or "New Conversation",
             )
             session.add(conv)
@@ -193,7 +193,7 @@ async def add_message(conversation_id: str, request: dict):
 
 
 @router.post("/conversations/{conversation_id}/branch")
-async def branch_conversation(conversation_id: str, body: BranchConversationRequest):
+async def branch_conversation(conversation_id: str, body: BranchConversationRequest, current_user: CurrentUser = Depends(get_current_user)):
     """Branch a conversation from a specific message."""
     async with async_session() as session:
         result = await session.execute(
@@ -210,7 +210,7 @@ async def branch_conversation(conversation_id: str, body: BranchConversationRequ
             raise HTTPException(status_code=400, detail="Invalid message index")
 
         new_conv = Conversation(
-            user_id=DEFAULT_USER,
+            user_id=current_user.user_id,
             title=body.title or f"Branch of {conv.title}",
             message_count=body.from_message_index,
         )
