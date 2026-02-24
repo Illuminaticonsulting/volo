@@ -169,7 +169,7 @@ class AgentOrchestrator:
                     check = guardrails.check_action(
                         tool_name=block.name,
                         parameters=block.input,
-                        user_tier="admin",
+                        user_id="admin",
                     )
 
                     if not check["allowed"]:
