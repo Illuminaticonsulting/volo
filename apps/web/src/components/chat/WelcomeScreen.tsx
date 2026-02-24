@@ -115,7 +115,7 @@ export function WelcomeScreen({ onSuggestionClick }: WelcomeScreenProps) {
       </div>
 
       {/* Suggestion Grid */}
-      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 max-w-3xl w-full">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 max-w-3xl w-full">
         {suggestions.map((suggestion) => (
           <button
             key={suggestion.title}
@@ -130,7 +130,7 @@ export function WelcomeScreen({ onSuggestionClick }: WelcomeScreenProps) {
                 {suggestion.title}
                 <ArrowRight className="w-3 h-3 text-zinc-600 group-hover:text-brand-400 group-hover:translate-x-1 transition-all" />
               </h3>
-              <p className="text-[10px] sm:text-xs text-zinc-500 leading-relaxed line-clamp-2">
+              <p className="text-[11px] sm:text-xs text-zinc-500 leading-relaxed line-clamp-2">
                 {suggestion.description}
               </p>
             </div>

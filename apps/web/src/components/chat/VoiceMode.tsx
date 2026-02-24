@@ -55,9 +55,15 @@ export function VoiceMode({ isOpen, onClose }: VoiceModeProps) {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       streamRef.current = stream;
+    } catch {
+      toast.error('Microphone access is needed for voice mode. Please allow it in your browser settings.');
+      return;
+    }
+
+    try {
       const ctx = new AudioContext();
       audioContextRef.current = ctx;
-      const source = ctx.createMediaStreamSource(stream);
+      const source = ctx.createMediaStreamSource(streamRef.current!);
       const analyser = ctx.createAnalyser();
       analyser.fftSize = 256;
       analyser.smoothingTimeConstant = 0.8;
@@ -381,7 +387,7 @@ export function VoiceMode({ isOpen, onClose }: VoiceModeProps) {
             voiceState === 'speaking' ? 'bg-brand-400 animate-pulse' :
             'bg-zinc-600'
           )} />
-          <span className="text-xs text-zinc-400 font-medium">
+          <span className="text-xs text-zinc-400 font-medium" aria-live="polite">
             {voiceState === 'listening' ? 'Listening...' :
              voiceState === 'processing' ? 'Processing...' :
              voiceState === 'speaking' ? 'Speaking...' :
@@ -401,28 +407,32 @@ export function VoiceMode({ isOpen, onClose }: VoiceModeProps) {
       </div>
 
       {/* Animated Orb */}
-      <div className="relative mb-12">
+      <div className="relative mb-12 w-[120px] h-[120px]">
         {/* Outer glow rings */}
         <div
-          className="absolute inset-0 rounded-full transition-all duration-150"
+          className="absolute rounded-full transition-all duration-150"
           style={{
             transform: `scale(${orbScale * 1.4})`,
             boxShadow: `0 0 ${orbGlow * 2}px ${orbGlow}px rgba(92,124,250,0.1)`,
             width: 160,
             height: 160,
-            marginLeft: -80 + 60,
-            marginTop: -80 + 60,
+            top: '50%',
+            left: '50%',
+            marginLeft: -80,
+            marginTop: -80,
           }}
         />
         <div
-          className="absolute inset-0 rounded-full transition-all duration-150"
+          className="absolute rounded-full transition-all duration-150"
           style={{
             transform: `scale(${orbScale * 1.2})`,
             boxShadow: `0 0 ${orbGlow}px ${orbGlow / 2}px rgba(92,124,250,0.15)`,
             width: 140,
             height: 140,
-            marginLeft: -70 + 60,
-            marginTop: -70 + 60,
+            top: '50%',
+            left: '50%',
+            marginLeft: -70,
+            marginTop: -70,
           }}
         />
         {/* Main orb */}
@@ -470,7 +480,7 @@ export function VoiceMode({ isOpen, onClose }: VoiceModeProps) {
         {response && (
           <div className="animate-fade-in">
             <p className="text-xs text-zinc-500 mb-1">Volo</p>
-            <p className="text-sm text-zinc-300 leading-relaxed max-h-[200px] overflow-y-auto">
+            <p className="text-sm text-zinc-300 leading-relaxed max-h-[40vh] overflow-y-auto overscroll-contain scrollbar-hide">
               {response}
             </p>
           </div>

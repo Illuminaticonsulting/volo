@@ -38,7 +38,7 @@ export function SettingsPage() {
 
   return (
     <div className="flex-1 overflow-y-auto">
-      <div className="max-w-4xl mx-auto px-6 py-8">
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8">
         {/* Header */}
         <div className="mb-8">
           <h1 className="text-2xl font-bold text-white mb-1">Settings</h1>
@@ -46,13 +46,13 @@ export function SettingsPage() {
         </div>
 
         {/* Tabs */}
-        <div className="flex gap-1 mb-8 p-1 rounded-xl bg-surface-dark-2 border border-white/5 w-fit flex-wrap" role="tablist" aria-label="Settings tabs">
+        <div className="flex gap-1 mb-8 p-1 rounded-xl bg-surface-dark-2 border border-white/5 overflow-x-auto scrollbar-hide" role="tablist" aria-label="Settings tabs">
           {tabs.map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               className={cn(
-                'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all min-h-[44px]',
+                'flex items-center gap-2 px-4 py-2.5 rounded-lg text-sm font-medium transition-all min-h-[44px] flex-shrink-0 whitespace-nowrap',
                 activeTab === tab.id
                   ? 'bg-brand-600 text-white'
                   : 'text-zinc-400 hover:text-zinc-200 hover:bg-white/5'
@@ -248,7 +248,7 @@ function KeyInput({
           Get key <ExternalLink className="w-2.5 h-2.5" />
         </a>
       </div>
-      <div className="flex gap-2">
+      <div className="flex flex-col sm:flex-row gap-2">
         <div className="flex-1 relative">
           <input
             type={show ? 'text' : 'password'}
@@ -271,10 +271,11 @@ function KeyInput({
             {show ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
           </button>
         </div>
+        <div className="flex gap-2">
         <button
           onClick={onSave}
           disabled={!value.trim() || saving}
-          className="px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium transition-colors flex items-center gap-1.5"
+          className="flex-1 sm:flex-none px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium transition-colors flex items-center justify-center gap-1.5 min-h-[44px]"
         >
           {saving ? (
             <RefreshCw className="w-3.5 h-3.5 animate-spin" />
@@ -287,10 +288,11 @@ function KeyInput({
         </button>
         <button
           onClick={onTest}
-          className="px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-zinc-200 text-sm transition-colors"
+          className="flex-1 sm:flex-none px-3 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-zinc-200 text-sm transition-colors min-h-[44px]"
         >
           Test
         </button>
+        </div>
       </div>
     </div>
   );

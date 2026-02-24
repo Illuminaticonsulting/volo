@@ -160,6 +160,7 @@ body {
   position: sticky;
   bottom: 0;
   z-index: 20;
+  padding-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 /* Pulse animation for recording */

@@ -167,8 +167,9 @@ export default function HomePage() {
         {/* Mobile overlay */}
         {sidebarOpen && (
           <div
-            className="fixed inset-0 bg-black/50 z-30 md:hidden"
+            className="fixed inset-0 bg-black/50 z-30 md:hidden animate-fade-in"
             onClick={() => setSidebarOpen(false)}
+            aria-hidden="true"
           />
         )}
 
@@ -179,7 +180,7 @@ export default function HomePage() {
         <div className={cn(
           'flex-1 flex flex-col min-w-0',
           // On mobile: add bottom padding for nav bar, except on chat page (input handles it)
-          currentPage !== 'chat' ? 'pb-16 md:pb-0' : 'pb-0'
+          currentPage !== 'chat' ? 'pb-20 md:pb-0 safe-area-bottom' : 'pb-0'
         )}>
           <TopBar
             onToggleSidebar={toggleSidebar}

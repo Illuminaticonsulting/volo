@@ -269,8 +269,9 @@ export function ChatArea() {
             {/* Attach */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="p-2.5 sm:p-3 text-zinc-500 hover:text-zinc-300 active:text-zinc-200 transition-colors tap-none flex-shrink-0"
+              className="p-2.5 sm:p-3 text-zinc-500 hover:text-zinc-300 active:text-zinc-200 transition-colors tap-none flex-shrink-0 min-h-[44px] min-w-[44px] flex items-center justify-center"
               title="Attach file"
+              aria-label="Attach file"
             >
               <Paperclip className="w-5 h-5 sm:w-4 sm:h-4" />
             </button>
@@ -297,34 +298,28 @@ export function ChatArea() {
 
             {/* Right side buttons */}
             <div className="flex items-center gap-0.5 p-1.5 sm:p-2 flex-shrink-0">
-              {/* Voice Mode — always available */}
+              {/* Voice Mode */}
               <button
                 onClick={() => setVoiceModeOpen(true)}
-                className="p-2 sm:p-2 rounded-full text-zinc-500 hover:text-brand-400 active:text-brand-300 transition-all tap-none active:scale-95 hidden sm:flex"
+                className="p-2.5 sm:p-2 rounded-full text-zinc-500 hover:text-brand-400 active:text-brand-300 transition-all tap-none active:scale-95 flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 items-center justify-center"
                 title="Voice chat"
+                aria-label="Open voice chat"
               >
-                <AudioLines className="w-4 h-4" />
+                <AudioLines className="w-5 h-5 sm:w-4 sm:h-4" />
               </button>
 
               {/* Voice / Send toggle */}
               {!input.trim() ? (
                 <button
                   onClick={toggleRecording}
-                  onTouchStart={(e) => {
-                    const timer = setTimeout(() => {
-                      e.preventDefault();
-                      setVoiceModeOpen(true);
-                    }, 500);
-                    (e.currentTarget as any)._lp = timer;
-                  }}
-                  onTouchEnd={(e) => clearTimeout((e.currentTarget as any)._lp)}
                   className={cn(
-                    'p-2 sm:p-2 rounded-full transition-all tap-none active:scale-95',
+                    'p-2.5 sm:p-2 rounded-full transition-all tap-none active:scale-95 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center',
                     isRecording
                       ? 'bg-red-500/20 text-red-400 animate-pulse-soft'
                       : 'text-zinc-500 hover:text-zinc-300 active:text-zinc-200'
                   )}
-                  title={isRecording ? 'Stop recording' : 'Voice input (long press for voice chat)'}
+                  title={isRecording ? 'Stop recording' : 'Voice input'}
+                  aria-label={isRecording ? 'Stop recording' : 'Start voice input'}
                 >
                   <Mic className="w-5 h-5 sm:w-4 sm:h-4" />
                 </button>
@@ -334,7 +329,7 @@ export function ChatArea() {
                   onClick={handleSend}
                   disabled={isThinking}
                   className={cn(
-                    'p-2 rounded-full transition-all tap-none active:scale-90',
+                    'p-2.5 sm:p-2 rounded-full transition-all tap-none active:scale-90 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center',
                     !isThinking
                       ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20 hover:bg-brand-500'
                       : 'bg-zinc-700 text-zinc-500 cursor-not-allowed'

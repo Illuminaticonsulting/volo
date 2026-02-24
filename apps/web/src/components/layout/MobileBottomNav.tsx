@@ -3,11 +3,9 @@
 import {
   MessageSquare,
   LayoutDashboard,
-  Heart,
   Share2,
   MessagesSquare,
   User,
-  Monitor,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore, type Page } from '@/stores/appStore';
@@ -16,10 +14,8 @@ import { useAuthStore } from '@/stores/authStore';
 const mobileNavItems: { id: Page; icon: typeof MessageSquare; label: string }[] = [
   { id: 'chat', icon: MessageSquare, label: 'Chat' },
   { id: 'dashboard', icon: LayoutDashboard, label: 'Home' },
-  { id: 'social', icon: Share2, label: 'Social' },
   { id: 'messages', icon: MessagesSquare, label: 'Messages' },
-  { id: 'health', icon: Heart, label: 'Health' },
-  { id: 'vscode', icon: Monitor, label: 'VS Code' },
+  { id: 'social', icon: Share2, label: 'Social' },
 ];
 
 export function MobileBottomNav() {

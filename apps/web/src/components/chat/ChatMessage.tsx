@@ -215,7 +215,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
                       <div className="relative group/code my-3">
                         <button
                           onClick={() => handleCopyCode(codeContent)}
-                          className="absolute top-2 right-2 p-1.5 rounded-md bg-white/5 hover:bg-white/10 text-zinc-500 hover:text-zinc-300 transition-all opacity-0 group-hover/code:opacity-100 sm:opacity-0 z-10"
+                          className="absolute top-2 right-2 p-2 sm:p-1.5 rounded-md bg-white/10 sm:bg-white/5 hover:bg-white/10 text-zinc-400 sm:text-zinc-500 hover:text-zinc-300 transition-all opacity-100 sm:opacity-0 sm:group-hover/code:opacity-100 z-10"
                           aria-label="Copy code"
                         >
                           {copiedBlock === codeContent ? (
@@ -319,35 +319,35 @@ export function ChatMessage({ message }: ChatMessageProps) {
           )}>
             <button
               onClick={(e) => { e.stopPropagation(); handleCopy(); }}
-              className="p-1.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none"
+              className="p-2.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center"
               title="Copy"
             >
               {copied ? (
-                <Check className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-emerald-400" />
+                <Check className="w-4 h-4 sm:w-3 sm:h-3 text-emerald-400" />
               ) : (
-                <Copy className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-zinc-600 hover:text-zinc-400" />
+                <Copy className="w-4 h-4 sm:w-3 sm:h-3 text-zinc-500 hover:text-zinc-400" />
               )}
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); handleRegenerate(); }}
-              className="p-1.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none"
+              className="p-2.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center"
               title="Regenerate"
             >
-              <RotateCcw className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-zinc-600 hover:text-zinc-400" />
+              <RotateCcw className="w-4 h-4 sm:w-3 sm:h-3 text-zinc-500 hover:text-zinc-400" />
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); handleFeedback('up'); }}
-              className="p-1.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none"
+              className="p-2.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center"
               title="Good response"
             >
-              <ThumbsUp className={cn('w-3.5 h-3.5 sm:w-3 sm:h-3', feedback === 'up' ? 'text-emerald-400' : 'text-zinc-600 hover:text-emerald-400')} />
+              <ThumbsUp className={cn('w-4 h-4 sm:w-3 sm:h-3', feedback === 'up' ? 'text-emerald-400' : 'text-zinc-500 hover:text-emerald-400')} />
             </button>
             <button
               onClick={(e) => { e.stopPropagation(); handleFeedback('down'); }}
-              className="p-1.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none"
+              className="p-2.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center"
               title="Bad response"
             >
-              <ThumbsDown className={cn('w-3.5 h-3.5 sm:w-3 sm:h-3', feedback === 'down' ? 'text-red-400' : 'text-zinc-600 hover:text-red-400')} />
+              <ThumbsDown className={cn('w-4 h-4 sm:w-3 sm:h-3', feedback === 'down' ? 'text-red-400' : 'text-zinc-500 hover:text-red-400')} />
             </button>
           </div>
         )}
