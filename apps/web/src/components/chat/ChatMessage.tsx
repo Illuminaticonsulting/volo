@@ -37,7 +37,19 @@ export function ChatMessage({ message }: ChatMessageProps) {
   const [showActions, setShowActions] = useState(false);
 
   const handleCopy = async () => {
-    await navigator.clipboard.writeText(message.content);
+    try {
+      await navigator.clipboard.writeText(message.content);
+    } catch {
+      // Fallback for non-HTTPS or unsupported browsers
+      const textarea = document.createElement('textarea');
+      textarea.value = message.content;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
     setCopied(true);
     setTimeout(() => setCopied(false), 2000);
   };
@@ -74,7 +86,18 @@ export function ChatMessage({ message }: ChatMessageProps) {
   };
 
   const handleCopyCode = useCallback(async (code: string) => {
-    await navigator.clipboard.writeText(code);
+    try {
+      await navigator.clipboard.writeText(code);
+    } catch {
+      const textarea = document.createElement('textarea');
+      textarea.value = code;
+      textarea.style.position = 'fixed';
+      textarea.style.opacity = '0';
+      document.body.appendChild(textarea);
+      textarea.select();
+      document.execCommand('copy');
+      document.body.removeChild(textarea);
+    }
     setCopiedBlock(code);
     setTimeout(() => setCopiedBlock(null), 2000);
   }, []);

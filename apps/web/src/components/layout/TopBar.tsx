@@ -131,7 +131,7 @@ export function TopBar({ onToggleSidebar, onOpenCommandPalette }: TopBarProps) {
               aria-haspopup="true"
             >
               {user?.avatar ? (
-                <img src={user.avatar} alt="" className="w-full h-full rounded-full object-cover" />
+                <img src={user.avatar} alt={user.name || 'User avatar'} width={44} height={44} className="w-full h-full rounded-full object-cover" />
               ) : (
                 <span className="text-sm font-bold text-white">
                   {user?.name?.charAt(0)?.toUpperCase() || <User className="w-4 h-4 text-white" />}

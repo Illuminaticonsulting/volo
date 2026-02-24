@@ -53,6 +53,14 @@ class ApiClient {
     const res = await fetch(`${this.baseUrl}${endpoint}`, config);
 
     if (!res.ok) {
+      // Auto-logout on 401 Unauthorized
+      if (res.status === 401) {
+        try {
+          localStorage.removeItem('volo-auth');
+          window.location.href = '/';
+        } catch {}
+        throw new Error('Session expired. Please log in again.');
+      }
       const error = await res.json().catch(() => ({ detail: `HTTP ${res.status}` }));
       throw new Error(error.detail || error.message || `Request failed: ${res.status}`);
     }

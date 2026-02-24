@@ -39,13 +39,21 @@ export class ErrorBoundary extends React.Component<Props, State> {
             <p className="text-sm text-zinc-400 mb-6">
               {this.state.error?.message || 'An unexpected error occurred. Please try again.'}
             </p>
-            <button
-              onClick={() => this.setState({ hasError: false, error: undefined })}
-              className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors"
-            >
-              <RotateCcw className="w-4 h-4" />
-              Try again
-            </button>
+            <div className="flex items-center gap-3 justify-center">
+              <button
+                onClick={() => this.setState({ hasError: false, error: undefined })}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-brand-600 hover:bg-brand-500 text-white rounded-xl text-sm font-medium transition-colors"
+              >
+                <RotateCcw className="w-4 h-4" />
+                Try again
+              </button>
+              <button
+                onClick={() => window.location.reload()}
+                className="inline-flex items-center gap-2 px-5 py-2.5 bg-white/5 hover:bg-white/10 text-zinc-400 rounded-xl text-sm font-medium transition-colors"
+              >
+                Reload page
+              </button>
+            </div>
           </div>
         </div>
       );

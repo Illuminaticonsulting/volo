@@ -27,6 +27,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   abortController: null,
 
   sendMessage: async (content: string) => {
+    // Guard against concurrent sends
+    if (get().isThinking) {
+      get().stopGenerating();
+      await new Promise((r) => setTimeout(r, 100));
+    }
+
     const userMessage: Message = {
       id: generateId(),
       role: 'user',
@@ -195,7 +201,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
     const { abortController } = get();
     if (abortController) {
       abortController.abort();
+      // Let the catch block handle state cleanup
     }
-    set({ isThinking: false, abortController: null });
   },
 }));

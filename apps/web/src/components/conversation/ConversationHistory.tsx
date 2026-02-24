@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useRef, useCallback } from 'react';
 import {
   MessageSquare,
   Search,
@@ -22,15 +22,32 @@ export function ConversationHistory() {
   const [editingId, setEditingId] = useState<string | null>(null);
   const [editTitle, setEditTitle] = useState('');
   const [menuOpen, setMenuOpen] = useState<string | null>(null);
+  const debounceRef = useRef<NodeJS.Timeout | null>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     fetchConversations();
   }, [fetchConversations]);
 
-  const handleSearch = (q: string) => {
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handleClick = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(null);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, [menuOpen]);
+
+  const handleSearch = useCallback((q: string) => {
     setSearchQuery(q);
-    fetchConversations();
-  };
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      fetchConversations();
+    }, 300);
+  }, [setSearchQuery, fetchConversations]);
 
   const startRename = (id: string, currentTitle: string) => {
     setEditingId(id);
@@ -186,7 +203,7 @@ export function ConversationHistory() {
                   </span>
 
                   {/* Actions */}
-                  <div className="relative">
+                  <div className="relative" ref={menuOpen === conv.id ? menuRef : undefined}>
                     <button
                       onClick={(e) => {
                         e.stopPropagation();

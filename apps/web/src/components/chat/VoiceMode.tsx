@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, useEffect } from 'react';
+import { useState, useRef, useCallback, useEffect, useMemo } from 'react';
 import { X, Mic, MicOff, Volume2, VolumeX, Phone } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/stores/chatStore';
@@ -31,6 +31,12 @@ export function VoiceMode({ isOpen, onClose }: VoiceModeProps) {
   const animFrameRef = useRef<number>(0);
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const abortRef = useRef<AbortController | null>(null);
+  const isOpenRef = useRef(isOpen);
+
+  // Keep ref in sync
+  useEffect(() => {
+    isOpenRef.current = isOpen;
+  }, [isOpen]);
 
   // Timer for elapsed time
   useEffect(() => {
@@ -43,17 +49,6 @@ export function VoiceMode({ isOpen, onClose }: VoiceModeProps) {
       if (timerRef.current) clearInterval(timerRef.current);
     };
   }, [isOpen, voiceState]);
-
-  // Cleanup on close
-  useEffect(() => {
-    if (!isOpen) {
-      stopEverything();
-      setTranscript('');
-      setResponse('');
-      setElapsedTime(0);
-      setVoiceState('idle');
-    }
-  }, [isOpen]);
 
   // Audio amplitude analysis for orb animation
   const startAudioAnalysis = useCallback(async () => {
@@ -115,6 +110,17 @@ export function VoiceMode({ isOpen, onClose }: VoiceModeProps) {
     }
   }, [stopAudioAnalysis]);
 
+  // Cleanup on close
+  useEffect(() => {
+    if (!isOpen) {
+      stopEverything();
+      setTranscript('');
+      setResponse('');
+      setElapsedTime(0);
+      setVoiceState('idle');
+    }
+  }, [isOpen, stopEverything]);
+
   // Start listening
   const startListening = useCallback(async () => {
     const w = window as any;
@@ -126,6 +132,12 @@ export function VoiceMode({ isOpen, onClose }: VoiceModeProps) {
 
     // Cancel any ongoing TTS
     if (typeof speechSynthesis !== 'undefined') speechSynthesis.cancel();
+
+    // Don't listen if muted
+    if (isMuted) {
+      setVoiceState('idle');
+      return;
+    }
 
     setVoiceState('listening');
     setTranscript('');
@@ -181,15 +193,24 @@ export function VoiceMode({ isOpen, onClose }: VoiceModeProps) {
 
     recognitionRef.current = recognition;
     recognition.start();
-  }, [startAudioAnalysis, stopAudioAnalysis]);
+  }, [startAudioAnalysis, stopAudioAnalysis, isMuted]);
 
   // Process voice input — send to AI and speak response
   const processVoiceInput = useCallback(async (text: string) => {
     setVoiceState('processing');
     setResponse('');
 
-    // Also add to chat store so the conversation shows in chat
-    const { sendMessage } = useChatStore.getState();
+    // Add user message to chat store immediately
+    const userMsg = {
+      id: `voice-${Date.now()}-u`,
+      role: 'user' as const,
+      content: text,
+      timestamp: new Date(),
+      status: 'sent' as const,
+    };
+    useChatStore.setState((state) => ({
+      messages: [...state.messages, userMsg],
+    }));
 
     try {
       const controller = new AbortController();
@@ -202,7 +223,7 @@ export function VoiceMode({ isOpen, onClose }: VoiceModeProps) {
           role: m.role,
           content: m.content,
         })),
-      });
+      }, controller.signal);
 
       const reader = res.body?.getReader();
       const decoder = new TextDecoder();
@@ -249,15 +270,7 @@ export function VoiceMode({ isOpen, onClose }: VoiceModeProps) {
         setAmplitude(0);
       }
 
-      // Add messages to chat store for persistence
-      const { messages } = useChatStore.getState();
-      const userMsg = {
-        id: `voice-${Date.now()}-u`,
-        role: 'user' as const,
-        content: text,
-        timestamp: new Date(),
-        status: 'sent' as const,
-      };
+      // Add assistant message to chat store
       const assistantMsg = {
         id: `voice-${Date.now()}-a`,
         role: 'assistant' as const,
@@ -265,15 +278,15 @@ export function VoiceMode({ isOpen, onClose }: VoiceModeProps) {
         timestamp: new Date(),
         status: 'sent' as const,
       };
-      useChatStore.setState({
-        messages: [...messages, userMsg, assistantMsg],
-      });
+      useChatStore.setState((state) => ({
+        messages: [...state.messages, assistantMsg],
+      }));
 
       // After speaking, auto-listen again (hands-free loop)
-      if (isOpen) {
+      if (isOpenRef.current) {
         setVoiceState('idle');
         setTimeout(() => {
-          if (isOpen) startListening();
+          if (isOpenRef.current) startListening();
         }, 500);
       }
     } catch (err: any) {
@@ -281,7 +294,7 @@ export function VoiceMode({ isOpen, onClose }: VoiceModeProps) {
       setResponse('Sorry, I had trouble processing that. Tap to try again.');
       setVoiceState('idle');
     }
-  }, [isTTSEnabled, isOpen, startListening]);
+  }, [isTTSEnabled, startListening]);
 
   // TTS helper
   const speakText = (text: string): Promise<void> => {

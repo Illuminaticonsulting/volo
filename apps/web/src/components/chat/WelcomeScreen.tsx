@@ -77,22 +77,25 @@ export function WelcomeScreen({ onSuggestionClick }: WelcomeScreenProps) {
   }, [user?.name]);
 
   useEffect(() => {
+    let cancelled = false;
     const fetchStatus = async () => {
       try {
         const [healthRes, systemRes] = await Promise.allSettled([
           api.get('/health'),
           api.get<{ integrations_count?: number; memories_count?: number }>('/api/system/status'),
         ]);
+        if (cancelled) return;
         setStatus({
           apiOnline: healthRes.status === 'fulfilled',
           integrations: systemRes.status === 'fulfilled' ? (systemRes.value as { integrations_count?: number }).integrations_count || 0 : 0,
           memories: systemRes.status === 'fulfilled' ? (systemRes.value as { memories_count?: number }).memories_count || 0 : 0,
         });
       } catch {
-        setStatus({ apiOnline: false, integrations: 0, memories: 0 });
+        if (!cancelled) setStatus({ apiOnline: false, integrations: 0, memories: 0 });
       }
     };
     fetchStatus();
+    return () => { cancelled = true; };
   }, []);
 
   return (
