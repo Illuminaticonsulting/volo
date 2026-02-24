@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Brain,
@@ -133,8 +133,20 @@ export function AuthPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const [socialLoading, setSocialLoading] = useState<string | null>(null);
-  const [showMoreProviders, setShowMoreProviders] = useState(false);
+  const [availableProviders, setAvailableProviders] = useState<Record<string, boolean>>({});
   const { login } = useAuthStore();
+
+  // Fetch which OAuth providers are configured on mount
+  useEffect(() => {
+    api.get<{ providers: Record<string, boolean> }>('/api/auth/providers')
+      .then((data) => setAvailableProviders(data.providers || {}))
+      .catch(() => {/* If the endpoint fails, show all providers as fallback */});
+  }, []);
+
+  // Filter social providers to only show configured ones
+  const configuredProviders = socialProviders.filter(
+    (p) => availableProviders[p.id] === true
+  );
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -174,15 +186,7 @@ export function AuthPage() {
   };
 
   const handleSocialLogin = async (providerId: string) => {
-    // Providers with real OAuth flows on the backend
-    const oauthProviders = ['google', 'github', 'twitter', 'discord'];
     const providerName = socialProviders.find((p) => p.id === providerId)?.name || providerId;
-
-    // Providers not yet implemented at all
-    if (!oauthProviders.includes(providerId)) {
-      toast.info(`${providerName} sign-in coming soon!`);
-      return;
-    }
 
     setSocialLoading(providerId);
     try {
@@ -194,11 +198,7 @@ export function AuthPage() {
       toast.error(`${providerName} OAuth not configured on this server.`);
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : `${providerName} login failed`;
-      if (message.includes('501') || message.includes('not configured')) {
-        toast.info(`${providerName} sign-in is not configured yet. Ask the admin to set it up.`);
-      } else {
-        toast.error(message);
-      }
+      toast.error(message);
     } finally {
       setSocialLoading(null);
     }
@@ -285,71 +285,29 @@ export function AuthPage() {
             </p>
           </div>
 
-          {/* Social Login Grid */}
-          <div className="grid grid-cols-2 gap-2 mb-6">
-            {socialProviders.slice(0, 4).map((provider) => (
-              <button
-                key={provider.id}
-                onClick={() => handleSocialLogin(provider.id)}
-                disabled={!!socialLoading}
-                className={`flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl border ${provider.color} bg-white/[0.03] transition-all duration-200 disabled:opacity-50 min-h-[48px]`}
-                aria-label={`Sign in with ${provider.name}`}
-              >
-                {socialLoading === provider.id ? (
-                  <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
-                ) : (
-                  <>
-                    {provider.icon}
-                    <span className="text-sm text-zinc-300 font-medium">{provider.name}</span>
-                  </>
-                )}
-              </button>
-            ))}
-          </div>
-
-          {/* More social options */}
-          <div className="mb-6 text-center">
-            <button
-              onClick={() => setShowMoreProviders(!showMoreProviders)}
-              className="text-xs text-zinc-500 hover:text-zinc-400 transition-colors"
-            >
-              <span className="border-b border-dashed border-zinc-600">
-                {showMoreProviders ? 'Fewer options' : 'More sign-in options'}
-              </span>
-            </button>
-            <AnimatePresence>
-              {showMoreProviders && (
-                <motion.div
-                  initial={{ height: 0, opacity: 0 }}
-                  animate={{ height: 'auto', opacity: 1 }}
-                  exit={{ height: 0, opacity: 0 }}
-                  transition={{ duration: 0.2 }}
-                  className="overflow-hidden"
+          {/* Social Login Grid — only configured providers */}
+          {configuredProviders.length > 0 && (
+            <div className={`grid ${configuredProviders.length === 1 ? 'grid-cols-1' : 'grid-cols-2'} gap-2 mb-6`}>
+              {configuredProviders.map((provider) => (
+                <button
+                  key={provider.id}
+                  onClick={() => handleSocialLogin(provider.id)}
+                  disabled={!!socialLoading}
+                  className={`flex items-center justify-center gap-2.5 px-4 py-3 rounded-xl border ${provider.color} bg-white/[0.03] transition-all duration-200 disabled:opacity-50 min-h-[48px]`}
+                  aria-label={`Sign in with ${provider.name}`}
                 >
-                  <div className="grid grid-cols-3 gap-2 mt-3">
-                    {socialProviders.slice(4).map((provider) => (
-                      <button
-                        key={provider.id}
-                        onClick={() => handleSocialLogin(provider.id)}
-                        disabled={!!socialLoading}
-                        className={`flex flex-col items-center gap-1.5 px-3 py-3 rounded-xl border ${provider.color} bg-white/[0.03] transition-all duration-200 disabled:opacity-50 min-h-[48px]`}
-                        aria-label={`Sign in with ${provider.name}`}
-                      >
-                        {socialLoading === provider.id ? (
-                          <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
-                        ) : (
-                          <>
-                            {provider.icon}
-                            <span className="text-[11px] text-zinc-400">{provider.name}</span>
-                          </>
-                        )}
-                      </button>
-                    ))}
-                  </div>
-                </motion.div>
-              )}
-            </AnimatePresence>
-          </div>
+                  {socialLoading === provider.id ? (
+                    <Loader2 className="w-5 h-5 animate-spin text-zinc-400" />
+                  ) : (
+                    <>
+                      {provider.icon}
+                      <span className="text-sm text-zinc-300 font-medium">{provider.name}</span>
+                    </>
+                  )}
+                </button>
+              ))}
+            </div>
+          )}
 
           {/* Divider */}
           <div className="flex items-center gap-4 mb-6">

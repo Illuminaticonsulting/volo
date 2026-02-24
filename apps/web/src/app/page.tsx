@@ -53,6 +53,7 @@ export default function HomePage() {
       const name = params.get('name') || `${provider} User`;
       const email = params.get('email') || `user@${provider}.com`;
       const avatar = params.get('avatar') || undefined;
+      const onboardingDone = params.get('onboarding_done') === '1';
       login(
         {
           id: userId,
@@ -60,7 +61,7 @@ export default function HomePage() {
           name: decodeURIComponent(name),
           avatar,
           provider,
-          onboardingComplete: false,
+          onboardingComplete: onboardingDone,
         },
         authToken
       );

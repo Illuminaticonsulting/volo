@@ -112,6 +112,7 @@ async def find_or_create_oauth_user(
             "name": user.name,
             "avatar": user.avatar_url or "",
             "provider": provider,
+            "onboarding_completed": bool(getattr(user, 'onboarding_completed', False)),
             "access_token": jwt_access,
             "refresh_token": jwt_refresh,
         }
@@ -127,5 +128,6 @@ def build_frontend_redirect(user_data: dict) -> str:
         "name": user_data["name"],
         "email": user_data.get("email", ""),
         "avatar": user_data.get("avatar", ""),
+        "onboarding_done": "1" if user_data.get("onboarding_completed") else "0",
     }
     return f"{frontend_url}/?{urlencode(params, quote_via=quote)}"

@@ -1,11 +1,15 @@
 """
 VOLO — Onboarding Route
-Handles the conversational onboarding flow.
+Handles the conversational onboarding flow and user preferences.
 """
 
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, List
+from sqlalchemy import select
+
+from app.auth import get_current_user, CurrentUser
+from app.database import async_session, User
 
 router = APIRouter()
 
@@ -22,12 +26,21 @@ class OnboardingStatus(BaseModel):
     collected_data: dict = {}
 
 
+class UserPreferences(BaseModel):
+    name: str = ""
+    role: str = ""
+    interests: List[str] = []
+
+
 @router.get("/onboarding/status")
-async def get_onboarding_status():
+async def get_onboarding_status(current_user: CurrentUser = Depends(get_current_user)):
     """Get current onboarding status for the user."""
+    async with async_session() as session:
+        result = await session.execute(select(User).where(User.id == current_user.user_id))
+        user = result.scalar_one_or_none()
     return OnboardingStatus(
-        completed=False,
-        current_step=0,
+        completed=bool(user and user.onboarding_completed),
+        current_step=user.onboarding_step if user else 0,
         steps_total=5,
         collected_data={},
     )
@@ -36,8 +49,6 @@ async def get_onboarding_status():
 @router.post("/onboarding/step")
 async def submit_onboarding_step(step: OnboardingStep):
     """Submit a step in the onboarding process."""
-    # The onboarding is primarily conversational (through the chat),
-    # but this endpoint handles structured data collection
     return {
         "success": True,
         "step": step.step,
@@ -47,9 +58,29 @@ async def submit_onboarding_step(step: OnboardingStep):
 
 
 @router.post("/onboarding/complete")
-async def complete_onboarding():
-    """Mark onboarding as complete."""
+async def complete_onboarding(current_user: CurrentUser = Depends(get_current_user)):
+    """Mark onboarding as complete in the database."""
+    async with async_session() as session:
+        result = await session.execute(select(User).where(User.id == current_user.user_id))
+        user = result.scalar_one_or_none()
+        if user:
+            user.onboarding_completed = True
+            await session.commit()
     return {
         "success": True,
         "message": "Welcome to Volo! Your agent is fully configured and ready.",
     }
+
+
+@router.post("/user/preferences")
+async def save_user_preferences(prefs: UserPreferences, current_user: CurrentUser = Depends(get_current_user)):
+    """Save user preferences from onboarding wizard."""
+    async with async_session() as session:
+        result = await session.execute(select(User).where(User.id == current_user.user_id))
+        user = result.scalar_one_or_none()
+        if user:
+            if prefs.name:
+                user.name = prefs.name
+            user.onboarding_completed = True
+            await session.commit()
+    return {"success": True, "message": "Preferences saved."}

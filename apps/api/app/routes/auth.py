@@ -2,12 +2,16 @@
 VOLO - Auth Routes
 Registration, login, token refresh, /me, and OAuth flows for
 Google, GitHub, Discord, and Twitter/X.
+
+OAuth state is stored in Redis (works across multiple Gunicorn workers).
 """
 
+import json
 import uuid
 import secrets
 import hashlib
 import base64
+import logging
 from datetime import datetime
 
 from fastapi import APIRouter, HTTPException, Depends, Request
@@ -25,34 +29,44 @@ from app.auth import (
 from app.database import async_session, User, Integration
 from app.config import settings
 from app.services.oauth import find_or_create_oauth_user, build_frontend_redirect
+from app.services.cache import cache
 
+logger = logging.getLogger("volo.auth")
 router = APIRouter()
 
-# -- In-memory PKCE / state stores (transient) --
-_oauth_states: dict[str, dict] = {}
+# -- Redis-backed OAuth state (safe for multi-worker) --
+_OAUTH_STATE_TTL = 600  # 10 minutes
 
 
-def _store_state(provider: str, extra: dict | None = None) -> str:
-    """Generate and store an OAuth state parameter."""
+async def _store_state(provider: str, extra: dict | None = None) -> str:
+    """Generate and store an OAuth state parameter in Redis."""
     state = secrets.token_urlsafe(32)
-    _oauth_states[state] = {
+    payload = {
         "provider": provider,
         "created_at": datetime.utcnow().isoformat(),
         **(extra or {}),
     }
-    if len(_oauth_states) > 200:
-        oldest = sorted(_oauth_states, key=lambda k: _oauth_states[k]["created_at"])
-        for k in oldest[: len(_oauth_states) - 200]:
-            del _oauth_states[k]
+    await cache.set(f"oauth_state:{state}", json.dumps(payload), ttl=_OAUTH_STATE_TTL)
     return state
 
 
-def _pop_state(state: str, provider: str) -> dict:
-    """Retrieve and consume an OAuth state. Raises 400 if invalid."""
-    data = _oauth_states.pop(state, None)
-    if not data or data.get("provider") != provider:
-        raise HTTPException(400, "Invalid or expired OAuth state")
+async def _pop_state(state: str, provider: str) -> dict:
+    """Retrieve and consume an OAuth state from Redis. Raises on invalid."""
+    raw = await cache.get(f"oauth_state:{state}")
+    await cache.delete(f"oauth_state:{state}")
+    if not raw:
+        raise HTTPException(400, "Invalid or expired OAuth state — please try again")
+    data = json.loads(raw)
+    if data.get("provider") != provider:
+        raise HTTPException(400, "Invalid or expired OAuth state — please try again")
     return data
+
+
+def _error_redirect(message: str) -> RedirectResponse:
+    """Redirect to frontend with an error query param (user-friendly)."""
+    from urllib.parse import quote
+    frontend_url = settings.frontend_url.rstrip("/")
+    return RedirectResponse(url=f"{frontend_url}/?error={quote(message)}", status_code=302)
 
 
 # -- Request / Response Models --
@@ -192,7 +206,7 @@ async def google_oauth_start():
     if not settings.google_client_id:
         raise HTTPException(501, "Google OAuth not configured. Set GOOGLE_CLIENT_ID and GOOGLE_CLIENT_SECRET.")
 
-    state = _store_state("google")
+    state = await _store_state("google")
     redirect_uri = settings.google_redirect_uri or f"{settings.frontend_url}/api/auth/google/callback"
     scopes = "openid email profile"
     auth_url = (
@@ -211,46 +225,52 @@ async def google_oauth_start():
 @router.get("/google/callback")
 async def google_oauth_callback(code: str = "", state: str = ""):
     """Handle Google OAuth callback."""
-    if not code or not state:
-        raise HTTPException(400, "Missing code or state")
+    try:
+        if not code or not state:
+            return _error_redirect("Missing code or state")
 
-    _pop_state(state, "google")
-    redirect_uri = settings.google_redirect_uri or f"{settings.frontend_url}/api/auth/google/callback"
+        await _pop_state(state, "google")
+        redirect_uri = settings.google_redirect_uri or f"{settings.frontend_url}/api/auth/google/callback"
 
-    async with httpx.AsyncClient() as client:
-        token_resp = await client.post(
-            "https://oauth2.googleapis.com/token",
-            data={
-                "client_id": settings.google_client_id,
-                "client_secret": settings.google_client_secret,
-                "code": code,
-                "grant_type": "authorization_code",
-                "redirect_uri": redirect_uri,
-            },
+        async with httpx.AsyncClient() as client:
+            token_resp = await client.post(
+                "https://oauth2.googleapis.com/token",
+                data={
+                    "client_id": settings.google_client_id,
+                    "client_secret": settings.google_client_secret,
+                    "code": code,
+                    "grant_type": "authorization_code",
+                    "redirect_uri": redirect_uri,
+                },
+            )
+            if token_resp.status_code != 200:
+                return _error_redirect("Google token exchange failed")
+            tokens = token_resp.json()
+
+            profile_resp = await client.get(
+                "https://www.googleapis.com/oauth2/v2/userinfo",
+                headers={"Authorization": f"Bearer {tokens['access_token']}"},
+            )
+            if profile_resp.status_code != 200:
+                return _error_redirect("Failed to fetch Google profile")
+            profile = profile_resp.json()
+
+        user_data = await find_or_create_oauth_user(
+            provider="google",
+            provider_id=profile.get("id", ""),
+            email=profile.get("email", ""),
+            name=profile.get("name", "Google User"),
+            avatar_url=profile.get("picture"),
+            access_token=tokens.get("access_token"),
+            refresh_token=tokens.get("refresh_token"),
         )
-        if token_resp.status_code != 200:
-            raise HTTPException(400, f"Google token exchange failed: {token_resp.text}")
-        tokens = token_resp.json()
 
-        profile_resp = await client.get(
-            "https://www.googleapis.com/oauth2/v2/userinfo",
-            headers={"Authorization": f"Bearer {tokens['access_token']}"},
-        )
-        if profile_resp.status_code != 200:
-            raise HTTPException(400, "Failed to fetch Google profile")
-        profile = profile_resp.json()
-
-    user_data = await find_or_create_oauth_user(
-        provider="google",
-        provider_id=profile.get("id", ""),
-        email=profile.get("email", ""),
-        name=profile.get("name", "Google User"),
-        avatar_url=profile.get("picture"),
-        access_token=tokens.get("access_token"),
-        refresh_token=tokens.get("refresh_token"),
-    )
-
-    return RedirectResponse(url=build_frontend_redirect(user_data), status_code=302)
+        return RedirectResponse(url=build_frontend_redirect(user_data), status_code=302)
+    except HTTPException:
+        return _error_redirect("Google login failed")
+    except Exception as e:
+        logger.exception("Google OAuth callback error")
+        return _error_redirect("Google login failed")
 
 
 # ===== GitHub OAuth 2.0 =====
@@ -261,7 +281,7 @@ async def github_oauth_start():
     if not settings.github_client_id:
         raise HTTPException(501, "GitHub OAuth not configured. Set GITHUB_CLIENT_ID and GITHUB_CLIENT_SECRET.")
 
-    state = _store_state("github")
+    state = await _store_state("github")
     redirect_uri = settings.github_redirect_uri or f"{settings.frontend_url}/api/auth/github/callback"
     auth_url = (
         f"https://github.com/login/oauth/authorize?"
@@ -276,12 +296,11 @@ async def github_oauth_start():
 @router.get("/github/callback")
 async def github_oauth_callback(code: str = "", state: str = ""):
     """Handle GitHub OAuth callback."""
-    frontend_url = settings.frontend_url.rstrip("/")
     try:
         if not code or not state:
-            return RedirectResponse(url=f"{frontend_url}/?error=Missing+code+or+state", status_code=302)
+            return _error_redirect("Missing code or state")
 
-        _pop_state(state, "github")
+        await _pop_state(state, "github")
         redirect_uri = settings.github_redirect_uri or f"{settings.frontend_url}/api/auth/github/callback"
 
         async with httpx.AsyncClient() as client:
@@ -296,12 +315,12 @@ async def github_oauth_callback(code: str = "", state: str = ""):
                 headers={"Accept": "application/json"},
             )
             if token_resp.status_code != 200:
-                return RedirectResponse(url=f"{frontend_url}/?error=GitHub+token+exchange+failed", status_code=302)
+                return _error_redirect("GitHub token exchange failed")
             tokens = token_resp.json()
 
             gh_access_token = tokens.get("access_token")
             if not gh_access_token:
-                return RedirectResponse(url=f"{frontend_url}/?error=GitHub+did+not+return+access+token", status_code=302)
+                return _error_redirect("GitHub did not return access token")
 
             profile_resp = await client.get(
                 "https://api.github.com/user",
@@ -337,9 +356,10 @@ async def github_oauth_callback(code: str = "", state: str = ""):
 
         return RedirectResponse(url=build_frontend_redirect(user_data), status_code=302)
     except HTTPException:
-        return RedirectResponse(url=f"{frontend_url}/?error=GitHub+login+failed", status_code=302)
+        return _error_redirect("GitHub login failed")
     except Exception:
-        return RedirectResponse(url=f"{frontend_url}/?error=GitHub+login+failed", status_code=302)
+        logger.exception("GitHub OAuth callback error")
+        return _error_redirect("GitHub login failed")
 
 
 @router.get("/github/token")
@@ -369,7 +389,7 @@ async def discord_oauth_start():
     if not settings.discord_client_id:
         raise HTTPException(501, "Discord OAuth not configured. Set DISCORD_CLIENT_ID and DISCORD_CLIENT_SECRET.")
 
-    state = _store_state("discord")
+    state = await _store_state("discord")
     redirect_uri = settings.discord_redirect_uri or f"{settings.frontend_url}/api/auth/discord/callback"
     auth_url = (
         f"https://discord.com/api/oauth2/authorize?"
@@ -385,50 +405,56 @@ async def discord_oauth_start():
 @router.get("/discord/callback")
 async def discord_oauth_callback(code: str = "", state: str = ""):
     """Handle Discord OAuth callback."""
-    if not code or not state:
-        raise HTTPException(400, "Missing code or state")
+    try:
+        if not code or not state:
+            return _error_redirect("Missing code or state")
 
-    _pop_state(state, "discord")
-    redirect_uri = settings.discord_redirect_uri or f"{settings.frontend_url}/api/auth/discord/callback"
+        await _pop_state(state, "discord")
+        redirect_uri = settings.discord_redirect_uri or f"{settings.frontend_url}/api/auth/discord/callback"
 
-    async with httpx.AsyncClient() as client:
-        token_resp = await client.post(
-            "https://discord.com/api/oauth2/token",
-            data={
-                "client_id": settings.discord_client_id,
-                "client_secret": settings.discord_client_secret,
-                "grant_type": "authorization_code",
-                "code": code,
-                "redirect_uri": redirect_uri,
-            },
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        async with httpx.AsyncClient() as client:
+            token_resp = await client.post(
+                "https://discord.com/api/oauth2/token",
+                data={
+                    "client_id": settings.discord_client_id,
+                    "client_secret": settings.discord_client_secret,
+                    "grant_type": "authorization_code",
+                    "code": code,
+                    "redirect_uri": redirect_uri,
+                },
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+            if token_resp.status_code != 200:
+                return _error_redirect("Discord token exchange failed")
+            tokens = token_resp.json()
+
+            profile_resp = await client.get(
+                "https://discord.com/api/v10/users/@me",
+                headers={"Authorization": f"Bearer {tokens['access_token']}"},
+            )
+            profile = profile_resp.json()
+
+        discord_id = profile.get("id", "")
+        username = profile.get("username", "")
+        avatar_hash = profile.get("avatar", "")
+        avatar_url = f"https://cdn.discordapp.com/avatars/{discord_id}/{avatar_hash}.png" if avatar_hash else ""
+
+        user_data = await find_or_create_oauth_user(
+            provider="discord",
+            provider_id=discord_id,
+            email=profile.get("email") or f"{username}@discord.com",
+            name=profile.get("global_name") or username or "Discord User",
+            avatar_url=avatar_url,
+            access_token=tokens.get("access_token"),
+            refresh_token=tokens.get("refresh_token"),
         )
-        if token_resp.status_code != 200:
-            raise HTTPException(400, f"Discord token exchange failed: {token_resp.text}")
-        tokens = token_resp.json()
 
-        profile_resp = await client.get(
-            "https://discord.com/api/v10/users/@me",
-            headers={"Authorization": f"Bearer {tokens['access_token']}"},
-        )
-        profile = profile_resp.json()
-
-    discord_id = profile.get("id", "")
-    username = profile.get("username", "")
-    avatar_hash = profile.get("avatar", "")
-    avatar_url = f"https://cdn.discordapp.com/avatars/{discord_id}/{avatar_hash}.png" if avatar_hash else ""
-
-    user_data = await find_or_create_oauth_user(
-        provider="discord",
-        provider_id=discord_id,
-        email=profile.get("email") or f"{username}@discord.com",
-        name=profile.get("global_name") or username or "Discord User",
-        avatar_url=avatar_url,
-        access_token=tokens.get("access_token"),
-        refresh_token=tokens.get("refresh_token"),
-    )
-
-    return RedirectResponse(url=build_frontend_redirect(user_data), status_code=302)
+        return RedirectResponse(url=build_frontend_redirect(user_data), status_code=302)
+    except HTTPException:
+        return _error_redirect("Discord login failed")
+    except Exception:
+        logger.exception("Discord OAuth callback error")
+        return _error_redirect("Discord login failed")
 
 
 # ===== X / Twitter OAuth 2.0 with PKCE =====
@@ -445,7 +471,7 @@ async def twitter_oauth_start():
     ).rstrip(b"=").decode()
 
     redirect_uri = settings.twitter_redirect_uri or f"{settings.frontend_url}/api/auth/twitter/callback"
-    state = _store_state("twitter", {"code_verifier": code_verifier})
+    state = await _store_state("twitter", {"code_verifier": code_verifier})
 
     scopes = "tweet.read users.read offline.access"
     auth_url = (
@@ -464,53 +490,59 @@ async def twitter_oauth_start():
 @router.get("/twitter/callback")
 async def twitter_oauth_callback(code: str = "", state: str = ""):
     """Handle Twitter/X OAuth 2.0 callback."""
-    if not code or not state:
-        raise HTTPException(400, "Missing code or state parameter")
+    try:
+        if not code or not state:
+            return _error_redirect("Missing code or state parameter")
 
-    state_data = _pop_state(state, "twitter")
-    code_verifier = state_data["code_verifier"]
-    redirect_uri = settings.twitter_redirect_uri or f"{settings.frontend_url}/api/auth/twitter/callback"
+        state_data = await _pop_state(state, "twitter")
+        code_verifier = state_data["code_verifier"]
+        redirect_uri = settings.twitter_redirect_uri or f"{settings.frontend_url}/api/auth/twitter/callback"
 
-    async with httpx.AsyncClient() as client:
-        token_response = await client.post(
-            "https://api.twitter.com/2/oauth2/token",
-            data={
-                "code": code,
-                "grant_type": "authorization_code",
-                "redirect_uri": redirect_uri,
-                "code_verifier": code_verifier,
-            },
-            auth=(settings.twitter_client_id, settings.twitter_client_secret) if settings.twitter_client_secret else None,
-            headers={"Content-Type": "application/x-www-form-urlencoded"},
+        async with httpx.AsyncClient() as client:
+            token_response = await client.post(
+                "https://api.twitter.com/2/oauth2/token",
+                data={
+                    "code": code,
+                    "grant_type": "authorization_code",
+                    "redirect_uri": redirect_uri,
+                    "code_verifier": code_verifier,
+                },
+                auth=(settings.twitter_client_id, settings.twitter_client_secret) if settings.twitter_client_secret else None,
+                headers={"Content-Type": "application/x-www-form-urlencoded"},
+            )
+
+            if token_response.status_code != 200:
+                return _error_redirect("Twitter token exchange failed")
+
+            tokens = token_response.json()
+
+            user_response = await client.get(
+                "https://api.twitter.com/2/users/me",
+                params={"user.fields": "id,name,username,profile_image_url"},
+                headers={"Authorization": f"Bearer {tokens['access_token']}"},
+            )
+
+            if user_response.status_code != 200:
+                return _error_redirect("Failed to fetch Twitter user profile")
+
+            twitter_user = user_response.json().get("data", {})
+
+        user_data = await find_or_create_oauth_user(
+            provider="twitter",
+            provider_id=twitter_user.get("id", ""),
+            email=f"{twitter_user.get('username', 'user')}@x.com",
+            name=twitter_user.get("name", twitter_user.get("username", "Twitter User")),
+            avatar_url=twitter_user.get("profile_image_url"),
+            access_token=tokens.get("access_token"),
+            refresh_token=tokens.get("refresh_token"),
         )
 
-        if token_response.status_code != 200:
-            raise HTTPException(400, f"Twitter token exchange failed: {token_response.text}")
-
-        tokens = token_response.json()
-
-        user_response = await client.get(
-            "https://api.twitter.com/2/users/me",
-            params={"user.fields": "id,name,username,profile_image_url"},
-            headers={"Authorization": f"Bearer {tokens['access_token']}"},
-        )
-
-        if user_response.status_code != 200:
-            raise HTTPException(400, "Failed to fetch Twitter user profile")
-
-        twitter_user = user_response.json().get("data", {})
-
-    user_data = await find_or_create_oauth_user(
-        provider="twitter",
-        provider_id=twitter_user.get("id", ""),
-        email=f"{twitter_user.get('username', 'user')}@x.com",
-        name=twitter_user.get("name", twitter_user.get("username", "Twitter User")),
-        avatar_url=twitter_user.get("profile_image_url"),
-        access_token=tokens.get("access_token"),
-        refresh_token=tokens.get("refresh_token"),
-    )
-
-    return RedirectResponse(url=build_frontend_redirect(user_data), status_code=302)
+        return RedirectResponse(url=build_frontend_redirect(user_data), status_code=302)
+    except HTTPException:
+        return _error_redirect("Twitter login failed")
+    except Exception:
+        logger.exception("Twitter OAuth callback error")
+        return _error_redirect("Twitter login failed")
 
 
 # ===== Apple Sign-In (placeholder) =====
