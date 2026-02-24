@@ -39,6 +39,8 @@ const platformConfig: Record<string, { color: string; bg: string; icon: string }
   whatsapp_business: { color: 'text-teal-400', bg: 'bg-teal-500/10', icon: '💼' },
   imessage: { color: 'text-blue-400', bg: 'bg-blue-500/10', icon: '🍎' },
   signal: { color: 'text-blue-500', bg: 'bg-blue-500/10', icon: '🔒' },
+  discord: { color: 'text-indigo-400', bg: 'bg-indigo-500/10', icon: '🎮' },
+  slack: { color: 'text-purple-400', bg: 'bg-purple-500/10', icon: '💼' },
 };
 
 export function MessagingHubPage() {

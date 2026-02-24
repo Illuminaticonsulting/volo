@@ -366,43 +366,187 @@ function IntegrationsSection() {
   };
 
   return (
-    <div className="space-y-4">
-      {integrations.map((int) => (
-        <div
-          key={int.name}
-          className="flex items-center justify-between p-5 rounded-2xl bg-surface-dark-2 border border-white/5"
-        >
-          <div className="flex items-center gap-4">
-            <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center bg-white/5')}>
-              <int.icon className="w-5 h-5 text-zinc-400" />
-            </div>
-            <div>
-              <p className="text-sm font-medium text-zinc-200">{int.name}</p>
-              <p className="text-xs text-zinc-500">{int.description}</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3">
-            <span
-              className={cn(
-                'text-[10px] px-2.5 py-1 rounded-full font-medium',
-                int.connected
-                  ? 'bg-emerald-500/20 text-emerald-400'
-                  : 'bg-zinc-800 text-zinc-500'
-              )}
+    <div className="space-y-6">
+      {/* Core Integrations */}
+      <div>
+        <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Core Services</h3>
+        <div className="space-y-3">
+          {integrations.map((int) => (
+            <div
+              key={int.name}
+              className="flex items-center justify-between p-5 rounded-2xl bg-surface-dark-2 border border-white/5"
             >
-              {int.connected ? 'Connected' : 'Not Connected'}
-            </span>
-            {!int.connected && (
-              <button
-                onClick={() => handleConnect(int)}
-                className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-medium transition-colors"
-              >
-                Connect
-              </button>
-            )}
-          </div>
+              <div className="flex items-center gap-4">
+                <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center bg-white/5')}>
+                  <int.icon className="w-5 h-5 text-zinc-400" />
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-zinc-200">{int.name}</p>
+                  <p className="text-xs text-zinc-500">{int.description}</p>
+                </div>
+              </div>
+              <div className="flex items-center gap-3">
+                <span
+                  className={cn(
+                    'text-[10px] px-2.5 py-1 rounded-full font-medium',
+                    int.connected
+                      ? 'bg-emerald-500/20 text-emerald-400'
+                      : 'bg-zinc-800 text-zinc-500'
+                  )}
+                >
+                  {int.connected ? 'Connected' : 'Not Connected'}
+                </span>
+                {!int.connected && (
+                  <button
+                    onClick={() => handleConnect(int)}
+                    className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-medium transition-colors"
+                  >
+                    Connect
+                  </button>
+                )}
+              </div>
+            </div>
+          ))}
         </div>
-      ))}
+      </div>
+
+      {/* Social Media */}
+      <SocialIntegrationsSection />
+
+      {/* Messaging */}
+      <MessagingIntegrationsSection />
+    </div>
+  );
+}
+
+function SocialIntegrationsSection() {
+  const [socialPlatforms, setSocialPlatforms] = useState<{ id: string; name: string; connected: boolean; username?: string; color: string }[]>([]);
+
+  useEffect(() => {
+    api.get<{ platforms: any[] }>('/api/social/connect/status')
+      .then((data) => setSocialPlatforms(data.platforms || []))
+      .catch(() => {});
+  }, []);
+
+  const handleConnect = async (platformId: string) => {
+    try {
+      const data = await api.get<{ url: string }>(`/api/social/connect/${platformId}`);
+      if (data.url) window.location.href = data.url;
+    } catch {
+      toast.error(`Failed to start ${platformId} connection`);
+    }
+  };
+
+  const handleDisconnect = async (platformId: string) => {
+    try {
+      await api.delete(`/api/social/connect/${platformId}`);
+      toast.success(`Disconnected from ${platformId}`);
+      setSocialPlatforms((prev) => prev.map((p) => p.id === platformId ? { ...p, connected: false, username: undefined } : p));
+    } catch {
+      toast.error('Failed to disconnect');
+    }
+  };
+
+  const socialIcons: Record<string, string> = {
+    twitter: '𝕏', instagram: '📸', tiktok: '🎵', facebook: '📘', reddit: '🔴', linkedin: '💼',
+  };
+
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Social Media</h3>
+      <div className="space-y-3">
+        {socialPlatforms.map((p) => (
+          <div
+            key={p.id}
+            className="flex items-center justify-between p-4 rounded-2xl bg-surface-dark-2 border border-white/5"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 text-lg">
+                {socialIcons[p.id] || '🌐'}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-zinc-200 capitalize">{p.name}</p>
+                {p.username && <p className="text-xs text-zinc-500">@{p.username}</p>}
+              </div>
+            </div>
+            <div className="flex items-center gap-3">
+              <span className={cn(
+                'text-[10px] px-2.5 py-1 rounded-full font-medium',
+                p.connected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-500'
+              )}>
+                {p.connected ? 'Connected' : 'Not Connected'}
+              </span>
+              {p.connected ? (
+                <button
+                  onClick={() => handleDisconnect(p.id)}
+                  className="px-3 py-1.5 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-400 text-xs font-medium transition-colors"
+                >
+                  Disconnect
+                </button>
+              ) : (
+                <button
+                  onClick={() => handleConnect(p.id)}
+                  className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-medium transition-colors"
+                >
+                  Connect
+                </button>
+              )}
+            </div>
+          </div>
+        ))}
+        {socialPlatforms.length === 0 && (
+          <p className="text-sm text-zinc-500 text-center py-4">Loading social platforms...</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function MessagingIntegrationsSection() {
+  const [messagingPlatforms, setMessagingPlatforms] = useState<{ id: string; name: string; connected: boolean; icon: string; color: string }[]>([]);
+
+  useEffect(() => {
+    api.get<{ platforms: any[] }>('/api/messages/platforms')
+      .then((data) => setMessagingPlatforms(data.platforms || []))
+      .catch(() => {});
+  }, []);
+
+  const platformEmojis: Record<string, string> = {
+    telegram: '✈️', whatsapp: '💬', whatsapp_business: '💼', imessage: '🍎', signal: '🔒', discord: '🎮', slack: '💼',
+  };
+
+  return (
+    <div>
+      <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Messaging</h3>
+      <div className="space-y-3">
+        {messagingPlatforms.map((p) => (
+          <div
+            key={p.id}
+            className="flex items-center justify-between p-4 rounded-2xl bg-surface-dark-2 border border-white/5"
+          >
+            <div className="flex items-center gap-3">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 text-lg">
+                {platformEmojis[p.id] || '💬'}
+              </div>
+              <div>
+                <p className="text-sm font-medium text-zinc-200">{p.name}</p>
+                <p className="text-xs text-zinc-500">
+                  {p.connected ? 'Token configured' : 'Add API token in environment'}
+                </p>
+              </div>
+            </div>
+            <span className={cn(
+              'text-[10px] px-2.5 py-1 rounded-full font-medium',
+              p.connected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-500'
+            )}>
+              {p.connected ? 'Connected' : 'Not Connected'}
+            </span>
+          </div>
+        ))}
+        {messagingPlatforms.length === 0 && (
+          <p className="text-sm text-zinc-500 text-center py-4">Loading messaging platforms...</p>
+        )}
+      </div>
     </div>
   );
 }

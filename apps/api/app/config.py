@@ -42,6 +42,28 @@ class Settings(BaseSettings):
     twitter_client_secret: str = ""
     twitter_redirect_uri: str = ""
 
+    # Social OAuth (Instagram, TikTok, Facebook)
+    instagram_client_id: str = ""
+    instagram_client_secret: str = ""
+    instagram_redirect_uri: str = ""
+    tiktok_client_key: str = ""
+    tiktok_client_secret: str = ""
+    tiktok_redirect_uri: str = ""
+    facebook_app_id: str = ""
+    facebook_app_secret: str = ""
+    facebook_redirect_uri: str = ""
+
+    # Messaging Platforms
+    telegram_bot_token: str = ""
+    whatsapp_api_token: str = ""
+    whatsapp_phone_id: str = ""
+    whatsapp_business_token: str = ""
+    whatsapp_business_phone_id: str = ""
+    signal_api_url: str = ""
+    discord_bot_token: str = ""
+    slack_bot_token: str = ""
+    slack_app_token: str = ""
+
     # Authenticator Vault
     volo_vault_key: str = ""
 

@@ -1,31 +1,30 @@
 """
 VOLO — Unified Messaging Routes
-Aggregated inbox across Telegram, WhatsApp, iMessage, Signal.
+Aggregated inbox across Telegram, WhatsApp, iMessage, Signal, Discord, Slack.
 Auto-2FA: When a platform needs a TOTP code, Volo pulls it from the vault.
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Depends
 from pydantic import BaseModel
 from typing import Optional
 
 from app.services.messaging import MessagingService
 from app.services.authenticator import authenticator_vault
+from app.auth import get_current_user, CurrentUser
 
 router = APIRouter()
 messaging = MessagingService()
 
-DEFAULT_USER = "dev-user"
-
 
 class SendMessageRequest(BaseModel):
-    platform: str  # telegram, whatsapp, whatsapp_business, signal
-    to: str  # chat_id or phone number
+    platform: str  # telegram, whatsapp, whatsapp_business, signal, discord, slack
+    to: str  # chat_id, phone number, or channel_id
     text: str
     template: Optional[str] = None  # For WhatsApp Business templates
 
 
 @router.get("/messages")
-async def get_all_messages():
+async def get_all_messages(current_user: CurrentUser = Depends(get_current_user)):
     """Get unified inbox — all messages from all platforms."""
     messages = await messaging.get_all_messages()
     return {
@@ -36,7 +35,7 @@ async def get_all_messages():
 
 
 @router.get("/messages/{platform}")
-async def get_platform_messages(platform: str):
+async def get_platform_messages(platform: str, current_user: CurrentUser = Depends(get_current_user)):
     """Get messages from a specific platform."""
     fetchers = {
         "telegram": messaging.telegram_get_updates,
@@ -44,6 +43,8 @@ async def get_platform_messages(platform: str):
         "whatsapp_business": messaging.whatsapp_biz_get_messages,
         "imessage": messaging.imessage_get_messages,
         "signal": messaging.signal_get_messages,
+        "discord": messaging.discord_get_messages,
+        "slack": messaging.slack_get_messages,
     }
 
     fetcher = fetchers.get(platform)
@@ -55,7 +56,7 @@ async def get_platform_messages(platform: str):
 
 
 @router.post("/messages/send")
-async def send_message(body: SendMessageRequest):
+async def send_message(body: SendMessageRequest, current_user: CurrentUser = Depends(get_current_user)):
     """Send a message on a specific platform."""
     if body.platform == "telegram":
         result = await messaging.telegram_send(body.to, body.text)
@@ -63,6 +64,10 @@ async def send_message(body: SendMessageRequest):
         result = await messaging.whatsapp_send(body.to, body.text)
     elif body.platform == "whatsapp_business":
         result = await messaging.whatsapp_biz_send(body.to, body.text, body.template)
+    elif body.platform == "discord":
+        result = await messaging.discord_send(body.to, body.text)
+    elif body.platform == "slack":
+        result = await messaging.slack_send(body.to, body.text)
     else:
         return {"error": f"Send not supported for {body.platform}"}
 
@@ -70,12 +75,12 @@ async def send_message(body: SendMessageRequest):
 
 
 @router.get("/messages/platforms")
-async def get_messaging_platforms():
+async def get_messaging_platforms(current_user: CurrentUser = Depends(get_current_user)):
     """Get list of messaging platforms and their connection status + 2FA availability."""
     platforms = messaging.get_connected_platforms()
 
     # Check which platforms have TOTP configured in the vault
-    totp_accounts = await authenticator_vault.list_accounts(user_id=DEFAULT_USER)
+    totp_accounts = await authenticator_vault.list_accounts(user_id=current_user.user_id)
     totp_services = {a["service"] for a in totp_accounts}
 
     for p in platforms:
@@ -85,7 +90,7 @@ async def get_messaging_platforms():
 
 
 @router.get("/messages/{platform}/2fa")
-async def get_platform_2fa(platform: str):
+async def get_platform_2fa(platform: str, current_user: CurrentUser = Depends(get_current_user)):
     """
     Get the current 2FA code for a messaging platform.
     Called automatically when logging in or re-authenticating.
@@ -97,7 +102,7 @@ async def get_platform_2fa(platform: str):
     and the messaging page auto-fills it. No more opening Google Authenticator
     and copy-pasting codes.
     """
-    result = await authenticator_vault.get_code(user_id=DEFAULT_USER, service=platform)
+    result = await authenticator_vault.get_code(user_id=current_user.user_id, service=platform)
     if not result:
         return {
             "platform": platform,

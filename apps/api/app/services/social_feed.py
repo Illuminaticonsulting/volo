@@ -1,17 +1,21 @@
 """
 VOLO — Unified Social Feed Service
 Aggregates content from Twitter/X, Instagram, LinkedIn, TikTok, Reddit, Facebook.
+Uses per-user OAuth tokens when available, falls back to app-level tokens or demo data.
 """
 
 import os
 import httpx
 from datetime import datetime, timezone
 
+from app.services.social_oauth import social_oauth
+
 
 class SocialFeedService:
     """Unified social feed aggregator across all platforms."""
 
     def __init__(self):
+        # App-level fallback tokens (from env)
         self.twitter_token = os.getenv("TWITTER_BEARER_TOKEN", "")
         self.instagram_token = os.getenv("INSTAGRAM_TOKEN", "")
         self.linkedin_token = os.getenv("LINKEDIN_TOKEN", "")
@@ -20,17 +24,26 @@ class SocialFeedService:
         self.tiktok_token = os.getenv("TIKTOK_TOKEN", "")
         self.facebook_token = os.getenv("FACEBOOK_TOKEN", "")
 
+    async def _get_token(self, user_id: str | None, platform: str, fallback: str) -> str:
+        """Get user-specific token or fall back to app-level token."""
+        if user_id:
+            user_token = await social_oauth.get_access_token(user_id, platform)
+            if user_token:
+                return user_token
+        return fallback
+
     # ── Twitter/X ───────────────────────────────────────────────────────
 
-    async def twitter_timeline(self, limit: int = 20) -> list[dict]:
+    async def twitter_timeline(self, limit: int = 20, user_id: str | None = None) -> list[dict]:
         """Get home timeline from Twitter/X."""
-        if not self.twitter_token:
+        token = await self._get_token(user_id, "twitter", self.twitter_token)
+        if not token:
             return self._demo_posts("twitter")
 
         async with httpx.AsyncClient() as client:
             resp = await client.get(
                 "https://api.twitter.com/2/users/me/timelines/reverse_chronological",
-                headers={"Authorization": f"Bearer {self.twitter_token}"},
+                headers={"Authorization": f"Bearer {token}"},
                 params={
                     "max_results": limit,
                     "tweet.fields": "created_at,public_metrics,author_id",
@@ -64,9 +77,10 @@ class SocialFeedService:
 
     # ── Instagram ───────────────────────────────────────────────────────
 
-    async def instagram_feed(self, limit: int = 20) -> list[dict]:
+    async def instagram_feed(self, limit: int = 20, user_id: str | None = None) -> list[dict]:
         """Get Instagram feed."""
-        if not self.instagram_token:
+        token = await self._get_token(user_id, "instagram", self.instagram_token)
+        if not token:
             return self._demo_posts("instagram")
 
         async with httpx.AsyncClient() as client:
@@ -74,7 +88,7 @@ class SocialFeedService:
                 "https://graph.instagram.com/me/media",
                 params={
                     "fields": "id,caption,media_type,media_url,thumbnail_url,timestamp,like_count,comments_count,permalink",
-                    "access_token": self.instagram_token,
+                    "access_token": token,
                     "limit": limit,
                 },
             )
@@ -101,16 +115,17 @@ class SocialFeedService:
 
     # ── LinkedIn ────────────────────────────────────────────────────────
 
-    async def linkedin_feed(self, limit: int = 20) -> list[dict]:
+    async def linkedin_feed(self, limit: int = 20, user_id: str | None = None) -> list[dict]:
         """Get LinkedIn feed."""
-        if not self.linkedin_token:
+        token = await self._get_token(user_id, "linkedin", self.linkedin_token)
+        if not token:
             return self._demo_posts("linkedin")
         # LinkedIn API is restrictive — requires approved marketing developer platform
         return self._demo_posts("linkedin")
 
     # ── Reddit ──────────────────────────────────────────────────────────
 
-    async def reddit_feed(self, subreddits: list[str] | None = None, limit: int = 20) -> list[dict]:
+    async def reddit_feed(self, subreddits: list[str] | None = None, limit: int = 20, user_id: str | None = None) -> list[dict]:
         """Get Reddit front page or specific subreddit posts."""
         subs = subreddits or ["technology", "programming", "worldnews"]
         sub_str = "+".join(subs)
@@ -171,17 +186,51 @@ class SocialFeedService:
 
     # ── TikTok ──────────────────────────────────────────────────────────
 
-    async def tiktok_feed(self, limit: int = 20) -> list[dict]:
+    async def tiktok_feed(self, limit: int = 20, user_id: str | None = None) -> list[dict]:
         """Get TikTok feed."""
-        if not self.tiktok_token:
+        token = await self._get_token(user_id, "tiktok", self.tiktok_token)
+        if not token:
             return self._demo_posts("tiktok")
+
+        # TikTok API: fetch user's posted videos
+        async with httpx.AsyncClient() as client:
+            resp = await client.post(
+                "https://open.tiktokapis.com/v2/video/list/",
+                json={"max_count": limit},
+                headers={
+                    "Authorization": f"Bearer {token}",
+                    "Content-Type": "application/json",
+                },
+            )
+            if resp.status_code == 200:
+                data = resp.json().get("data", {})
+                posts = []
+                for video in data.get("videos", []):
+                    posts.append({
+                        "platform": "tiktok",
+                        "id": video.get("id", ""),
+                        "author": "You",
+                        "username": "",
+                        "avatar": "",
+                        "content": video.get("title", ""),
+                        "timestamp": datetime.fromtimestamp(
+                            video.get("create_time", 0), tz=timezone.utc
+                        ).isoformat() if video.get("create_time") else "",
+                        "likes": video.get("like_count", 0),
+                        "comments": video.get("comment_count", 0),
+                        "shares": video.get("share_count", 0),
+                        "media": [{"url": video.get("cover_image_url", ""), "type": "video"}],
+                        "url": video.get("share_url", ""),
+                    })
+                return posts
         return self._demo_posts("tiktok")
 
     # ── Facebook ────────────────────────────────────────────────────────
 
-    async def facebook_feed(self, limit: int = 20) -> list[dict]:
+    async def facebook_feed(self, limit: int = 20, user_id: str | None = None) -> list[dict]:
         """Get Facebook feed."""
-        if not self.facebook_token:
+        token = await self._get_token(user_id, "facebook", self.facebook_token)
+        if not token:
             return self._demo_posts("facebook")
 
         async with httpx.AsyncClient() as client:
@@ -189,7 +238,7 @@ class SocialFeedService:
                 "https://graph.facebook.com/v18.0/me/feed",
                 params={
                     "fields": "id,message,created_time,likes.summary(true),comments.summary(true),full_picture,permalink_url",
-                    "access_token": self.facebook_token,
+                    "access_token": token,
                     "limit": limit,
                 },
             )
@@ -216,18 +265,18 @@ class SocialFeedService:
 
     # ── Unified Feed ────────────────────────────────────────────────────
 
-    async def get_unified_feed(self, platforms: list[str] | None = None) -> list[dict]:
+    async def get_unified_feed(self, platforms: list[str] | None = None, user_id: str | None = None) -> list[dict]:
         """Get posts from all platforms, merged and sorted."""
         target = platforms or ["twitter", "instagram", "linkedin", "reddit", "tiktok", "facebook"]
         all_posts: list[dict] = []
 
         fetchers = {
-            "twitter": self.twitter_timeline,
-            "instagram": self.instagram_feed,
-            "linkedin": self.linkedin_feed,
-            "reddit": self.reddit_feed,
-            "tiktok": self.tiktok_feed,
-            "facebook": self.facebook_feed,
+            "twitter": lambda: self.twitter_timeline(user_id=user_id),
+            "instagram": lambda: self.instagram_feed(user_id=user_id),
+            "linkedin": lambda: self.linkedin_feed(user_id=user_id),
+            "reddit": lambda: self.reddit_feed(user_id=user_id),
+            "tiktok": lambda: self.tiktok_feed(user_id=user_id),
+            "facebook": lambda: self.facebook_feed(user_id=user_id),
         }
 
         for platform in target:
@@ -238,15 +287,20 @@ class SocialFeedService:
         all_posts.sort(key=lambda p: p.get("timestamp", ""), reverse=True)
         return all_posts
 
-    def get_connected_platforms(self) -> list[dict]:
+    async def get_connected_platforms(self, user_id: str | None = None) -> list[dict]:
         """Return which social platforms are connected."""
+        # Check user-specific connections
+        user_status = {}
+        if user_id:
+            user_status = await social_oauth.get_connection_status(user_id)
+
         return [
-            {"id": "twitter", "name": "Twitter / X", "connected": bool(self.twitter_token), "icon": "twitter", "color": "#1DA1F2"},
-            {"id": "instagram", "name": "Instagram", "connected": bool(self.instagram_token), "icon": "instagram", "color": "#E4405F"},
-            {"id": "linkedin", "name": "LinkedIn", "connected": bool(self.linkedin_token), "icon": "linkedin", "color": "#0A66C2"},
-            {"id": "reddit", "name": "Reddit", "connected": bool(self.reddit_client_id), "icon": "message-circle", "color": "#FF4500"},
-            {"id": "tiktok", "name": "TikTok", "connected": bool(self.tiktok_token), "icon": "music", "color": "#000000"},
-            {"id": "facebook", "name": "Facebook", "connected": bool(self.facebook_token), "icon": "facebook", "color": "#1877F2"},
+            {"id": "twitter", "name": "Twitter / X", "connected": user_status.get("twitter", {}).get("connected", False) or bool(self.twitter_token), "icon": "twitter", "color": "#1DA1F2"},
+            {"id": "instagram", "name": "Instagram", "connected": user_status.get("instagram", {}).get("connected", False) or bool(self.instagram_token), "icon": "instagram", "color": "#E4405F"},
+            {"id": "linkedin", "name": "LinkedIn", "connected": user_status.get("linkedin", {}).get("connected", False) or bool(self.linkedin_token), "icon": "linkedin", "color": "#0A66C2"},
+            {"id": "reddit", "name": "Reddit", "connected": user_status.get("reddit", {}).get("connected", False) or bool(self.reddit_client_id), "icon": "message-circle", "color": "#FF4500"},
+            {"id": "tiktok", "name": "TikTok", "connected": user_status.get("tiktok", {}).get("connected", False) or bool(self.tiktok_token), "icon": "music", "color": "#000000"},
+            {"id": "facebook", "name": "Facebook", "connected": user_status.get("facebook", {}).get("connected", False) or bool(self.facebook_token), "icon": "facebook", "color": "#1877F2"},
         ]
 
     # ── Demo Data ───────────────────────────────────────────────────────

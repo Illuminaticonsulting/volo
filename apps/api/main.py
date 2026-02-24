@@ -29,6 +29,8 @@ from app.routes import google as google_routes
 from app.routes import youtube as youtube_routes
 from app.routes import messages as message_routes
 from app.routes import social_feed as social_feed_routes
+from app.routes import social_connect as social_connect_routes
+from app.routes import social_actions as social_actions_routes
 from app.routes import fitness as fitness_routes
 from app.routes import remote as remote_routes
 
@@ -116,6 +118,8 @@ app.include_router(google_routes.router, prefix="/api", tags=["Google"])
 app.include_router(youtube_routes.router, prefix="/api", tags=["YouTube"])
 app.include_router(message_routes.router, prefix="/api", tags=["Messages"])
 app.include_router(social_feed_routes.router, prefix="/api", tags=["Social Feed"])
+app.include_router(social_connect_routes.router, prefix="/api", tags=["Social Connect"])
+app.include_router(social_actions_routes.router, prefix="/api", tags=["Social Actions"])
 app.include_router(fitness_routes.router, prefix="/api", tags=["Health & Fitness"])
 
 # ── Remote Desktop Agent
