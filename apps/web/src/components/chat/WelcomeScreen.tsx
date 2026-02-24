@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import {
   Brain,
   Code,
@@ -10,8 +10,13 @@ import {
   Terminal,
   Sparkles,
   ArrowRight,
+  Sun,
+  Moon,
+  Sunrise,
+  Sunset,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useAuthStore } from '@/stores/authStore';
 
 interface WelcomeScreenProps {
   onSuggestionClick: (text: string) => void;
@@ -58,6 +63,18 @@ const suggestions = [
 
 export function WelcomeScreen({ onSuggestionClick }: WelcomeScreenProps) {
   const [status, setStatus] = useState({ apiOnline: false, integrations: 0, memories: 0 });
+  const user = useAuthStore((s) => s.user);
+
+  const greeting = useMemo(() => {
+    const hour = new Date().getHours();
+    const firstName = user?.name?.split(' ')[0] || '';
+    const name = firstName ? `, ${firstName}` : '';
+    if (hour < 6) return { text: `Still up${name}?`, icon: Moon, sub: 'The night is yours — let\'s get things done.' };
+    if (hour < 12) return { text: `Good morning${name}`, icon: Sunrise, sub: 'Ready to make today count.' };
+    if (hour < 17) return { text: `Good afternoon${name}`, icon: Sun, sub: 'What are we working on?' };
+    if (hour < 21) return { text: `Good evening${name}`, icon: Sunset, sub: 'Let\'s wrap up the day strong.' };
+    return { text: `Good night${name}`, icon: Moon, sub: 'One more thing before bed?' };
+  }, [user?.name]);
 
   useEffect(() => {
     const fetchStatus = async () => {
@@ -85,12 +102,12 @@ export function WelcomeScreen({ onSuggestionClick }: WelcomeScreenProps) {
         <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg shadow-brand-500/20">
           <Brain className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
         </div>
-        <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 sm:mb-3">
-          Welcome to <span className="gradient-text">Volo</span>
+        <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 sm:mb-3 flex items-center justify-center gap-2">
+          {<greeting.icon className="w-6 h-6 sm:w-7 sm:h-7 text-brand-400" />}
+          {greeting.text}
         </h1>
         <p className="text-zinc-500 text-xs sm:text-sm max-w-md px-2">
-          Your AI operating system. I can manage your code, trades, communications,
-          and life — all from this conversation.
+          {greeting.sub}
         </p>
       </div>
 

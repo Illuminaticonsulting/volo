@@ -416,7 +416,7 @@ export function SocialFeedPage() {
                   <Icon className={cn('w-3.5 h-3.5', platformColors[p.id])} />
                   {p.name}
                   {!p.connected && (
-                    <span className="text-[9px] ml-1 px-1 py-0.5 rounded bg-amber-500/20 text-amber-400">DEMO</span>
+                    <span className="w-1.5 h-1.5 ml-1 rounded-full bg-zinc-500" title="Not connected" />
                   )}
                 </button>
               );

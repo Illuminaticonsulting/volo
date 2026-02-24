@@ -8,6 +8,7 @@ interface ChatState {
   isThinking: boolean;
   conversationId: string | null;
   queuedMessage: string | null;
+  abortController: AbortController | null;
 
   // Actions
   sendMessage: (content: string) => void;
@@ -15,6 +16,7 @@ interface ChatState {
   clearMessages: () => void;
   setThinking: (thinking: boolean) => void;
   setQueuedMessage: (msg: string | null) => void;
+  stopGenerating: () => void;
 }
 
 export const useChatStore = create<ChatState>((set, get) => ({
@@ -22,6 +24,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
   isThinking: false,
   conversationId: null,
   queuedMessage: null,
+  abortController: null,
 
   sendMessage: async (content: string) => {
     const userMessage: Message = {
@@ -37,6 +40,11 @@ export const useChatStore = create<ChatState>((set, get) => ({
       isThinking: true,
     }));
 
+    const controller = new AbortController();
+    set({ abortController: controller });
+
+    let assistantMessageId: string | null = null;
+
     try {
       const response = await api.stream('/api/chat', {
         message: content,
@@ -45,7 +53,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
           role: m.role,
           content: m.content,
         })),
-      });
+      }, controller.signal);
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
@@ -58,6 +66,8 @@ export const useChatStore = create<ChatState>((set, get) => ({
         status: 'streaming',
         toolCalls: [],
       };
+
+      assistantMessageId = assistantMessage.id;
 
       set((state) => ({
         messages: [...state.messages, assistantMessage],
@@ -137,8 +147,24 @@ export const useChatStore = create<ChatState>((set, get) => ({
         messages: state.messages.map((m) =>
           m.id === assistantMessage.id ? { ...m, status: 'sent' } : m
         ),
+        abortController: null,
       }));
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.name === 'AbortError') {
+        // User cancelled — mark current message as sent with what we have
+        if (assistantMessageId) {
+          set((state) => ({
+            messages: state.messages.map((m) =>
+              m.id === assistantMessageId ? { ...m, status: 'sent' } : m
+            ),
+            isThinking: false,
+            abortController: null,
+          }));
+        } else {
+          set({ isThinking: false, abortController: null });
+        }
+        return;
+      }
       const errorMessage: Message = {
         id: generateId(),
         role: 'assistant',
@@ -151,6 +177,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
       set((state) => ({
         messages: [...state.messages, errorMessage],
         isThinking: false,
+        abortController: null,
       }));
     }
   },
@@ -163,4 +190,12 @@ export const useChatStore = create<ChatState>((set, get) => ({
   setThinking: (thinking) => set({ isThinking: thinking }),
 
   setQueuedMessage: (msg) => set({ queuedMessage: msg }),
+
+  stopGenerating: () => {
+    const { abortController } = get();
+    if (abortController) {
+      abortController.abort();
+    }
+    set({ isThinking: false, abortController: null });
+  },
 }));

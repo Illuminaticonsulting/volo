@@ -1,20 +1,22 @@
 'use client';
 
 import { useState, useRef, useEffect, KeyboardEvent, useCallback } from 'react';
-import { Mic, Paperclip, ArrowUp, ArrowDown } from 'lucide-react';
+import { Mic, Paperclip, ArrowUp, ArrowDown, Square, AudioLines } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ChatMessage, Message } from './ChatMessage';
 import { WelcomeScreen } from './WelcomeScreen';
 import { ThinkingIndicator } from './ThinkingIndicator';
+import { VoiceMode } from './VoiceMode';
 import { useChatStore } from '@/stores/chatStore';
 import { toast } from 'sonner';
 
 export function ChatArea() {
-  const { messages, isThinking, sendMessage, queuedMessage, setQueuedMessage } = useChatStore();
+  const { messages, isThinking, sendMessage, queuedMessage, setQueuedMessage, stopGenerating } = useChatStore();
   const [input, setInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
   const [showScrollDown, setShowScrollDown] = useState(false);
   const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
+  const [voiceModeOpen, setVoiceModeOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -240,6 +242,19 @@ export function ChatArea() {
         'chat-input-container border-t border-white/5 bg-surface-dark-1/80 backdrop-blur-xl',
         isKeyboardOpen && 'pb-0'
       )}>
+        {/* Stop generating button */}
+        {isThinking && (
+          <div className="flex justify-center pt-2">
+            <button
+              onClick={() => stopGenerating()}
+              className="flex items-center gap-2 px-4 py-1.5 rounded-full bg-white/5 border border-white/10 hover:bg-white/10 transition-colors text-xs text-zinc-400 hover:text-zinc-200 active:scale-95"
+            >
+              <Square className="w-3 h-3 fill-current" />
+              Stop generating
+            </button>
+          </div>
+        )}
+
         <div className="max-w-3xl mx-auto px-2 sm:px-4 py-2 sm:py-3">
           <div className="relative flex items-end gap-1 sm:gap-2 rounded-2xl bg-surface-dark-2 border border-white/10 focus-within:border-brand-500/50 transition-colors">
             {/* Hidden file input */}
@@ -282,17 +297,34 @@ export function ChatArea() {
 
             {/* Right side buttons */}
             <div className="flex items-center gap-0.5 p-1.5 sm:p-2 flex-shrink-0">
-              {/* Voice — show when input is empty */}
+              {/* Voice Mode — always available */}
+              <button
+                onClick={() => setVoiceModeOpen(true)}
+                className="p-2 sm:p-2 rounded-full text-zinc-500 hover:text-brand-400 active:text-brand-300 transition-all tap-none active:scale-95 hidden sm:flex"
+                title="Voice chat"
+              >
+                <AudioLines className="w-4 h-4" />
+              </button>
+
+              {/* Voice / Send toggle */}
               {!input.trim() ? (
                 <button
                   onClick={toggleRecording}
+                  onTouchStart={(e) => {
+                    const timer = setTimeout(() => {
+                      e.preventDefault();
+                      setVoiceModeOpen(true);
+                    }, 500);
+                    (e.currentTarget as any)._lp = timer;
+                  }}
+                  onTouchEnd={(e) => clearTimeout((e.currentTarget as any)._lp)}
                   className={cn(
                     'p-2 sm:p-2 rounded-full transition-all tap-none active:scale-95',
                     isRecording
                       ? 'bg-red-500/20 text-red-400 animate-pulse-soft'
                       : 'text-zinc-500 hover:text-zinc-300 active:text-zinc-200'
                   )}
-                  title={isRecording ? 'Stop recording' : 'Voice input'}
+                  title={isRecording ? 'Stop recording' : 'Voice input (long press for voice chat)'}
                 >
                   <Mic className="w-5 h-5 sm:w-4 sm:h-4" />
                 </button>
@@ -323,6 +355,9 @@ export function ChatArea() {
           </p>
         </div>
       </div>
+
+      {/* Voice Mode Overlay */}
+      <VoiceMode isOpen={voiceModeOpen} onClose={() => setVoiceModeOpen(false)} />
     </div>
   );
 }

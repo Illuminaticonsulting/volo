@@ -1,32 +1,46 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, lazy, Suspense } from 'react';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { ChatArea } from '@/components/chat/ChatArea';
 import { CommandPalette } from '@/components/command/CommandPalette';
 import { TopBar } from '@/components/layout/TopBar';
 import { cn } from '@/lib/utils';
-import { DashboardPage } from '@/components/dashboard/DashboardPage';
-import { SettingsPage } from '@/components/settings/SettingsPage';
-import { ActivityFeed } from '@/components/activity/ActivityFeed';
-import { StandingOrdersPage } from '@/components/standing-orders/StandingOrdersPage';
-import { AnalyticsDashboard } from '@/components/analytics/AnalyticsDashboard';
-import { MarketplacePage } from '@/components/marketplace/MarketplacePage';
-import { DocsPage } from '@/components/docs/DocsPage';
-import { ConversationHistory } from '@/components/conversation/ConversationHistory';
-import { GoogleServicesPage } from '@/components/google/GoogleServicesPage';
-import { YouTubeSummaryPage } from '@/components/youtube/YouTubeSummaryPage';
-import { SocialFeedPage } from '@/components/social/SocialFeedPage';
-import { MessagingHubPage } from '@/components/messaging/MessagingHubPage';
-import { HealthDashboardPage } from '@/components/health/HealthDashboardPage';
-import { VSCodePage } from '@/components/vscode/VSCodePage';
-import { AuthPage } from '@/components/auth/AuthPage';
-import { OnboardingWizard } from '@/components/onboarding/OnboardingWizard';
+import { ErrorBoundary } from '@/components/ui/ErrorBoundary';
 import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { useAppStore } from '@/stores/appStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
 import { toast } from 'sonner';
+
+// Lazy-loaded page components (code-split)
+const DashboardPage = lazy(() => import('@/components/dashboard/DashboardPage').then(m => ({ default: m.DashboardPage })));
+const SettingsPage = lazy(() => import('@/components/settings/SettingsPage').then(m => ({ default: m.SettingsPage })));
+const ActivityFeed = lazy(() => import('@/components/activity/ActivityFeed').then(m => ({ default: m.ActivityFeed })));
+const StandingOrdersPage = lazy(() => import('@/components/standing-orders/StandingOrdersPage').then(m => ({ default: m.StandingOrdersPage })));
+const AnalyticsDashboard = lazy(() => import('@/components/analytics/AnalyticsDashboard').then(m => ({ default: m.AnalyticsDashboard })));
+const MarketplacePage = lazy(() => import('@/components/marketplace/MarketplacePage').then(m => ({ default: m.MarketplacePage })));
+const DocsPage = lazy(() => import('@/components/docs/DocsPage').then(m => ({ default: m.DocsPage })));
+const ConversationHistory = lazy(() => import('@/components/conversation/ConversationHistory').then(m => ({ default: m.ConversationHistory })));
+const GoogleServicesPage = lazy(() => import('@/components/google/GoogleServicesPage').then(m => ({ default: m.GoogleServicesPage })));
+const YouTubeSummaryPage = lazy(() => import('@/components/youtube/YouTubeSummaryPage').then(m => ({ default: m.YouTubeSummaryPage })));
+const SocialFeedPage = lazy(() => import('@/components/social/SocialFeedPage').then(m => ({ default: m.SocialFeedPage })));
+const MessagingHubPage = lazy(() => import('@/components/messaging/MessagingHubPage').then(m => ({ default: m.MessagingHubPage })));
+const HealthDashboardPage = lazy(() => import('@/components/health/HealthDashboardPage').then(m => ({ default: m.HealthDashboardPage })));
+const VSCodePage = lazy(() => import('@/components/vscode/VSCodePage').then(m => ({ default: m.VSCodePage })));
+const AuthPage = lazy(() => import('@/components/auth/AuthPage').then(m => ({ default: m.AuthPage })));
+const OnboardingWizard = lazy(() => import('@/components/onboarding/OnboardingWizard').then(m => ({ default: m.OnboardingWizard })));
+
+function PageSkeleton() {
+  return (
+    <div className="flex-1 flex items-center justify-center">
+      <div className="flex flex-col items-center gap-3">
+        <div className="w-8 h-8 border-2 border-brand-500 border-t-transparent rounded-full animate-spin" />
+        <p className="text-xs text-zinc-500">Loading...</p>
+      </div>
+    </div>
+  );
+}
 
 export default function HomePage() {
   const { currentPage, sidebarOpen, commandPaletteOpen, toggleSidebar, setCommandPaletteOpen, setSidebarOpen } = useAppStore();
@@ -133,14 +147,20 @@ export default function HomePage() {
 
   // Auth gate — show login/register if not authenticated
   if (!isAuthenticated) {
-    return <AuthPage />;
+    return (
+      <Suspense fallback={<PageSkeleton />}>
+        <AuthPage />
+      </Suspense>
+    );
   }
 
   return (
     <>
       {/* Onboarding Wizard */}
       {showOnboarding && (
-        <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+        <Suspense fallback={null}>
+          <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
+        </Suspense>
       )}
 
       <div className="flex h-screen-safe overflow-hidden">
@@ -166,21 +186,25 @@ export default function HomePage() {
             onOpenCommandPalette={() => setCommandPaletteOpen(true)}
           />
           <main role="main" aria-label="Page content" className="flex-1 flex flex-col min-h-0">
-            {currentPage === 'chat' && <ChatArea />}
-            {currentPage === 'dashboard' && <DashboardPage />}
-            {currentPage === 'settings' && <SettingsPage />}
-            {currentPage === 'activity' && <ActivityFeed />}
-            {currentPage === 'standing-orders' && <StandingOrdersPage />}
-            {currentPage === 'analytics' && <AnalyticsDashboard />}
-            {currentPage === 'marketplace' && <MarketplacePage />}
-            {currentPage === 'docs' && <DocsPage />}
-            {currentPage === 'conversations' && <ConversationHistory />}
-            {currentPage === 'google' && <GoogleServicesPage />}
-            {currentPage === 'youtube' && <YouTubeSummaryPage />}
-            {currentPage === 'social' && <SocialFeedPage />}
-            {currentPage === 'messages' && <MessagingHubPage />}
-            {currentPage === 'health' && <HealthDashboardPage />}
-            {currentPage === 'vscode' && <VSCodePage />}
+            <ErrorBoundary>
+              {currentPage === 'chat' && <ChatArea />}
+              <Suspense fallback={<PageSkeleton />}>
+                {currentPage === 'dashboard' && <DashboardPage />}
+                {currentPage === 'settings' && <SettingsPage />}
+                {currentPage === 'activity' && <ActivityFeed />}
+                {currentPage === 'standing-orders' && <StandingOrdersPage />}
+                {currentPage === 'analytics' && <AnalyticsDashboard />}
+                {currentPage === 'marketplace' && <MarketplacePage />}
+                {currentPage === 'docs' && <DocsPage />}
+                {currentPage === 'conversations' && <ConversationHistory />}
+                {currentPage === 'google' && <GoogleServicesPage />}
+                {currentPage === 'youtube' && <YouTubeSummaryPage />}
+                {currentPage === 'social' && <SocialFeedPage />}
+                {currentPage === 'messages' && <MessagingHubPage />}
+                {currentPage === 'health' && <HealthDashboardPage />}
+                {currentPage === 'vscode' && <VSCodePage />}
+              </Suspense>
+            </ErrorBoundary>
           </main>
         </div>
 

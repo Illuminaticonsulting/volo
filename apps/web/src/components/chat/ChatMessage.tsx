@@ -1,11 +1,11 @@
 'use client';
 
-import { Brain, User, Copy, RotateCcw, ThumbsUp, ThumbsDown, Check } from 'lucide-react';
+import { Brain, User, Copy, RotateCcw, ThumbsUp, ThumbsDown, Check, Clipboard } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
-import { useState } from 'react';
+import { useState, useCallback } from 'react';
 import { useChatStore } from '@/stores/chatStore';
 import { toast } from 'sonner';
 
@@ -32,7 +32,9 @@ interface ChatMessageProps {
 export function ChatMessage({ message }: ChatMessageProps) {
   const isUser = message.role === 'user';
   const [copied, setCopied] = useState(false);
+  const [copiedBlock, setCopiedBlock] = useState<string | null>(null);
   const [feedback, setFeedback] = useState<'up' | 'down' | null>(null);
+  const [showActions, setShowActions] = useState(false);
 
   const handleCopy = async () => {
     await navigator.clipboard.writeText(message.content);
@@ -71,6 +73,12 @@ export function ChatMessage({ message }: ChatMessageProps) {
     }
   };
 
+  const handleCopyCode = useCallback(async (code: string) => {
+    await navigator.clipboard.writeText(code);
+    setCopiedBlock(code);
+    setTimeout(() => setCopiedBlock(null), 2000);
+  }, []);
+
   return (
     <div
       className={cn(
@@ -78,6 +86,10 @@ export function ChatMessage({ message }: ChatMessageProps) {
         isUser ? 'flex-row-reverse' : 'flex-row',
         'animate-slide-up'
       )}
+      onClick={() => {
+        // Toggle actions on tap (mobile)
+        if ('ontouchstart' in window) setShowActions(!showActions);
+      }}
     >
       {/* Avatar — hidden on mobile for user, always show for assistant */}
       <div
@@ -175,13 +187,27 @@ export function ChatMessage({ message }: ChatMessageProps) {
                     );
                   },
                   pre({ children, ...props }) {
+                    const codeContent = extractTextFromChildren(children);
                     return (
-                      <pre
-                        className="bg-black/40 rounded-xl p-4 overflow-x-auto border border-white/5 my-3"
-                        {...props}
-                      >
-                        {children}
-                      </pre>
+                      <div className="relative group/code my-3">
+                        <button
+                          onClick={() => handleCopyCode(codeContent)}
+                          className="absolute top-2 right-2 p-1.5 rounded-md bg-white/5 hover:bg-white/10 text-zinc-500 hover:text-zinc-300 transition-all opacity-0 group-hover/code:opacity-100 sm:opacity-0 z-10"
+                          aria-label="Copy code"
+                        >
+                          {copiedBlock === codeContent ? (
+                            <Check className="w-3.5 h-3.5 text-emerald-400" />
+                          ) : (
+                            <Clipboard className="w-3.5 h-3.5" />
+                          )}
+                        </button>
+                        <pre
+                          className="bg-black/40 rounded-xl p-4 overflow-x-auto border border-white/5"
+                          {...props}
+                        >
+                          {children}
+                        </pre>
+                      </div>
                     );
                   },
                   table({ children, ...props }) {
@@ -264,9 +290,12 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
         {/* Assistant message actions */}
         {!isUser && message.status !== 'streaming' && message.content && (
-          <div className="flex items-center gap-0.5 mt-1 opacity-0 group-hover/msg:opacity-100 sm:transition-opacity">
+          <div className={cn(
+            'flex items-center gap-0.5 mt-1 transition-opacity',
+            showActions ? 'opacity-100' : 'opacity-0 group-hover/msg:opacity-100'
+          )}>
             <button
-              onClick={handleCopy}
+              onClick={(e) => { e.stopPropagation(); handleCopy(); }}
               className="p-1.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none"
               title="Copy"
             >
@@ -277,21 +306,21 @@ export function ChatMessage({ message }: ChatMessageProps) {
               )}
             </button>
             <button
-              onClick={handleRegenerate}
+              onClick={(e) => { e.stopPropagation(); handleRegenerate(); }}
               className="p-1.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none"
               title="Regenerate"
             >
               <RotateCcw className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-zinc-600 hover:text-zinc-400" />
             </button>
             <button
-              onClick={() => handleFeedback('up')}
+              onClick={(e) => { e.stopPropagation(); handleFeedback('up'); }}
               className="p-1.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none"
               title="Good response"
             >
               <ThumbsUp className={cn('w-3.5 h-3.5 sm:w-3 sm:h-3', feedback === 'up' ? 'text-emerald-400' : 'text-zinc-600 hover:text-emerald-400')} />
             </button>
             <button
-              onClick={() => handleFeedback('down')}
+              onClick={(e) => { e.stopPropagation(); handleFeedback('down'); }}
               className="p-1.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none"
               title="Bad response"
             >
@@ -306,4 +335,13 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
 function formatToolName(name: string): string {
   return name.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
+}
+
+function extractTextFromChildren(children: React.ReactNode): string {
+  if (typeof children === 'string') return children;
+  if (Array.isArray(children)) return children.map(extractTextFromChildren).join('');
+  if (children && typeof children === 'object' && 'props' in children) {
+    return extractTextFromChildren((children as any).props.children);
+  }
+  return '';
 }

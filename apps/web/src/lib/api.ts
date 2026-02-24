@@ -84,7 +84,7 @@ class ApiClient {
   }
 
   /** Get the raw Response for streaming endpoints */
-  async stream(endpoint: string, body?: unknown): Promise<Response> {
+  async stream(endpoint: string, body?: unknown, signal?: AbortSignal): Promise<Response> {
     const token = getAuthToken();
     const res = await fetch(`${this.baseUrl}${endpoint}`, {
       method: 'POST',
@@ -93,6 +93,7 @@ class ApiClient {
         ...(token ? { Authorization: `Bearer ${token}` } : {}),
       },
       body: body ? JSON.stringify(body) : undefined,
+      signal,
     });
     if (!res.ok) throw new Error(`Stream request failed: ${res.status}`);
     return res;
