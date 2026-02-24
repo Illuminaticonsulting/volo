@@ -29,8 +29,8 @@ import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import { cn } from '@/lib/utils';
 import { toast } from 'sonner';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { api, API_URL } from '@/lib/api';
+import { useAuthStore } from '@/stores/authStore';
 
 // ── Types ──────────────────────────────────────────────────
 
@@ -149,6 +149,9 @@ const markdownComponents = {
 // ── Main Component ─────────────────────────────────────────
 
 export function VSCodePage() {
+  const user = useAuthStore((s) => s.user);
+  const userId = user?.id || 'dev-user';
+
   const [view, setView] = useState<PageView>('setup');
   const [agentOnline, setAgentOnline] = useState(false);
   const [agentKey, setAgentKey] = useState<string | null>(null);
@@ -173,8 +176,7 @@ export function VSCodePage() {
   useEffect(() => {
     const checkStatus = async () => {
       try {
-        const res = await fetch(`${API_URL}/api/remote/agent-status?user_id=dev-user`);
-        const data = await res.json();
+        const data = await api.get<{ online: boolean; sessions?: any[] }>(`/api/remote/agent-status?user_id=${userId}`);
         setAgentOnline(data.online);
         // Restore active sessions on load
         if (data.sessions && data.sessions.length > 0 && sessions.length === 0) {
@@ -212,7 +214,7 @@ export function VSCodePage() {
     checkStatus();
     const interval = setInterval(checkStatus, 5000);
     return () => clearInterval(interval);
-  }, []);
+  }, [userId]);
 
   // Auto-fetch repos on repos view
   useEffect(() => {
@@ -229,12 +231,10 @@ export function VSCodePage() {
   // Generate agent key
   const handleGenerateKey = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/remote/agent-key`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ user_id: 'dev-user', github_token: githubToken || undefined }),
+      const data = await api.post<{ agent_key: string; is_new: boolean; online: boolean }>('/api/remote/agent-key', {
+        user_id: userId,
+        github_token: githubToken || undefined,
       });
-      const data = await res.json();
       setAgentKey(data.agent_key);
       if (data.online) setAgentOnline(true);
       toast.success(data.is_new ? 'Agent key generated!' : 'Agent key retrieved');
@@ -247,8 +247,7 @@ export function VSCodePage() {
   const fetchRepos = async () => {
     setReposLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/remote/github/repos?user_id=dev-user`);
-      const data = await res.json();
+      const data = await api.get<{ repos: Repo[]; connected: boolean }>(`/api/remote/github/repos?user_id=${userId}`);
       setRepos(data.repos || []);
       setReposConnected(data.connected || false);
     } catch {
@@ -270,21 +269,11 @@ export function VSCodePage() {
     }
 
     try {
-      const res = await fetch(`${API_URL}/api/remote/session/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: 'dev-user',
-          repo_full_name: repo.full_name,
-          repo_clone_url: repo.clone_url,
-        }),
+      const data = await api.post<{ session_id: string }>('/api/remote/session/start', {
+        user_id: userId,
+        repo_full_name: repo.full_name,
+        repo_clone_url: repo.clone_url,
       });
-      if (!res.ok) {
-        const err = await res.json();
-        toast.error(err.detail || 'Failed to start session');
-        return;
-      }
-      const data = await res.json();
 
       const newSession: Session = {
         session_id: data.session_id,
@@ -309,7 +298,7 @@ export function VSCodePage() {
 
   // End a specific session
   const handleEndSession = async (sessionId: string) => {
-    await fetch(`${API_URL}/api/remote/session/end?session_id=${sessionId}`, { method: 'POST' });
+    try { await api.post(`/api/remote/session/end?session_id=${sessionId}`); } catch { /* best-effort */ }
 
     setSessions((prev) => prev.filter((s) => s.session_id !== sessionId));
 
@@ -331,11 +320,7 @@ export function VSCodePage() {
   // Handle Allow/Skip for pending commands
   const handleApprove = async (approvalId: string, decision: 'allow' | 'skip') => {
     try {
-      await fetch(`${API_URL}/api/remote/approve`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ approval_id: approvalId, decision }),
-      });
+      await api.post('/api/remote/approve', { approval_id: approvalId, decision });
     } catch {
       toast.error('Failed to send approval');
     }
@@ -370,41 +355,33 @@ export function VSCodePage() {
   const handleUndoFile = async (stepId: string, backupId: string) => {
     if (!activeSession) return;
     try {
-      const res = await fetch(`${API_URL}/api/remote/undo`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: 'dev-user',
-          session_id: activeSession.session_id,
-          backup_id: backupId,
-        }),
+      await api.post('/api/remote/undo', {
+        user_id: userId,
+        session_id: activeSession.session_id,
+        backup_id: backupId,
       });
-      if (res.ok) {
-        setSessions((prev) =>
-          prev.map((s) =>
-            s.session_id === activeSessionId
-              ? {
-                  ...s,
-                  messages: s.messages.map((m) =>
-                    m.toolSteps
-                      ? {
-                          ...m,
-                          toolSteps: m.toolSteps.map((step) =>
-                            step.id === stepId && step.fileChange
-                              ? { ...step, fileChange: { ...step.fileChange, review_status: 'undone' as const } }
-                              : step
-                          ),
-                        }
-                      : m
-                  ),
-                }
-              : s
-          )
-        );
-        toast.success('Changes undone');
-      } else {
-        toast.error('Failed to undo');
-      }
+      setSessions((prev) =>
+        prev.map((s) =>
+          s.session_id === activeSessionId
+            ? {
+                ...s,
+                messages: s.messages.map((m) =>
+                  m.toolSteps
+                    ? {
+                        ...m,
+                        toolSteps: m.toolSteps.map((step) =>
+                          step.id === stepId && step.fileChange
+                            ? { ...step, fileChange: { ...step.fileChange, review_status: 'undone' as const } }
+                            : step
+                        ),
+                      }
+                    : m
+                ),
+              }
+            : s
+        )
+      );
+      toast.success('Changes undone');
     } catch {
       toast.error('Failed to undo changes');
     }
@@ -438,17 +415,13 @@ export function VSCodePage() {
 
     try {
       // Use the dedicated remote/chat endpoint — autonomous agent loop
-      const response = await fetch(`${API_URL}/api/remote/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: 'dev-user',
-          session_id: activeSession.session_id,
-          message: msg,
-          messages: activeSession.messages
-            .filter((m) => m.role !== 'system')
-            .map((m) => ({ role: m.role, content: m.content })),
-        }),
+      const response = await api.stream('/api/remote/chat', {
+        user_id: userId,
+        session_id: activeSession.session_id,
+        message: msg,
+        messages: activeSession.messages
+          .filter((m) => m.role !== 'system')
+          .map((m) => ({ role: m.role, content: m.content })),
       });
 
       const reader = response.body?.getReader();
@@ -615,29 +588,22 @@ export function VSCodePage() {
     if (!activeSession) return;
     setChatLoading(true);
     try {
-      const res = await fetch(`${API_URL}/api/remote/execute`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          user_id: 'dev-user',
-          session_id: activeSession.session_id,
-          command_type: 'run_command',
-          payload: { command: cmd },
-        }),
+      const data = await api.post<{ result: { stdout?: string; stderr?: string; error?: string; exit_code: number } }>('/api/remote/execute', {
+        user_id: userId,
+        session_id: activeSession.session_id,
+        command_type: 'run_command',
+        payload: { command: cmd },
       });
-      if (res.ok) {
-        const data = await res.json();
-        const result = data.result;
-        updateMessages((prev) => [
-          ...prev,
-          { role: 'user', content: `\`${cmd}\``, timestamp: new Date() },
-          {
-            role: 'system',
-            content: `\`\`\`\n${result.stdout || result.stderr || result.error || 'Done'}\n\`\`\`${result.exit_code !== 0 ? `\n⚠️ Exit code: ${result.exit_code}` : ''}`,
-            timestamp: new Date(),
-          },
-        ]);
-      }
+      const result = data.result;
+      updateMessages((prev) => [
+        ...prev,
+        { role: 'user', content: `\`${cmd}\``, timestamp: new Date() },
+        {
+          role: 'system',
+          content: `\`\`\`\n${result.stdout || result.stderr || result.error || 'Done'}\n\`\`\`${result.exit_code !== 0 ? `\n⚠️ Exit code: ${result.exit_code}` : ''}`,
+          timestamp: new Date(),
+        },
+      ]);
     } catch {
       toast.error('Command failed');
     } finally {

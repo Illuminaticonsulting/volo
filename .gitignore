@@ -44,3 +44,4 @@ credentials.json
 
 # Deployment (generated at deploy time)
 nginx/active.conf
+screenshots/
