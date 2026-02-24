@@ -26,6 +26,15 @@
   --surface-dark-1: #111113;
   --surface-dark-2: #19191d;
   --surface-dark-3: #222228;
+
+  /* Semantic tokens — used by components that reference var(--bg-*) / var(--text-*) */
+  --bg-primary: var(--surface-dark-0);
+  --bg-secondary: var(--surface-dark-2);
+  --bg-tertiary: var(--surface-dark-3);
+  --text-primary: #e4e4e7;
+  --text-secondary: #a1a1aa;
+  --text-muted: #71717a;
+  --border: rgba(255, 255, 255, 0.08);
 }
 
 * {
@@ -205,6 +214,16 @@ body {
 }
 
 /* ─── Light Mode ─── */
+.light {
+  --bg-primary: var(--surface-0);
+  --bg-secondary: var(--surface-2);
+  --bg-tertiary: var(--surface-3);
+  --text-primary: #1a1a2e;
+  --text-secondary: #4b5563;
+  --text-muted: #6b7280;
+  --border: rgba(0, 0, 0, 0.1);
+}
+
 .light body {
   background-color: var(--surface-0);
   color: #1a1a2e;

@@ -2,9 +2,9 @@
 
 import { useState, useEffect } from 'react';
 import {
-  Heart, ThumbsUp, MessageCircle, Share2, RefreshCw, Filter,
+  Heart, MessageCircle, Share2, RefreshCw,
   ExternalLink, Twitter, Instagram, Linkedin, Music, Facebook as FacebookIcon,
-  Globe, TrendingUp, Bookmark, MoreHorizontal,
+  Globe, Bookmark, MoreHorizontal,
 } from 'lucide-react';
 import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -163,7 +163,7 @@ export function SocialFeedPage() {
                   className={cn(
                     'flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap transition-all',
                     activePlatform === p.id
-                      ? 'bg-white/15 text-white'
+                      ? 'bg-white/[0.15] text-white'
                       : 'bg-white/5 text-zinc-400 hover:bg-white/10'
                   )}
                 >

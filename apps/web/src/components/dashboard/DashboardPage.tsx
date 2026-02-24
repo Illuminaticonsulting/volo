@@ -4,11 +4,8 @@ import {
   Brain,
   Zap,
   GitBranch,
-  ServerCrash,
   Activity,
   BarChart3,
-  Clock,
-  Bell,
   TrendingUp,
   MessageSquare,
   Shield,
@@ -228,7 +225,7 @@ function StatusCard({
   value,
   color,
 }: {
-  icon: any;
+  icon: React.ElementType;
   label: string;
   value: string;
   color: string;
@@ -263,7 +260,7 @@ function QuickAction({
   description,
   onClick,
 }: {
-  icon: any;
+  icon: React.ElementType;
   title: string;
   description: string;
   onClick?: () => void;

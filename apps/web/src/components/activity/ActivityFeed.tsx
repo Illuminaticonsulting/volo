@@ -8,8 +8,10 @@ import {
   Clock,
   ArrowRight,
   RefreshCw,
-  Filter,
+  AlertCircle,
 } from 'lucide-react';
+import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface ActivityItem {
   id: string;
@@ -18,8 +20,6 @@ interface ActivityItem {
   details: string;
   timestamp: string;
 }
-
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 const typeIcons: Record<string, React.ReactNode> = {
   chat: <MessageSquare className="w-4 h-4 text-blue-400" />,
@@ -31,6 +31,7 @@ const typeIcons: Record<string, React.ReactNode> = {
 export function ActivityFeed() {
   const [items, setItems] = useState<ActivityItem[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);
   const [filter, setFilter] = useState('all');
 
   useEffect(() => {
@@ -39,19 +40,13 @@ export function ActivityFeed() {
 
   const fetchActivity = async () => {
     setLoading(true);
+    setError(false);
     try {
-      const res = await fetch(`${API}/api/activity/feed?limit=50`);
-      if (res.ok) {
-        const data = await res.json();
-        setItems(data.items || []);
-      }
+      const data = await api.get<{ items: ActivityItem[] }>('/api/activity/feed?limit=50');
+      setItems(data?.items || []);
     } catch {
-      // Placeholder data
-      setItems([
-        { id: '1', type: 'chat', action: 'Conversation started', details: 'New chat session', timestamp: new Date().toISOString() },
-        { id: '2', type: 'tool_execution', action: 'Tool executed', details: 'trading_quote: BTC', timestamp: new Date(Date.now() - 300000).toISOString() },
-        { id: '3', type: 'integration', action: 'GitHub synced', details: '3 new commits detected', timestamp: new Date(Date.now() - 600000).toISOString() },
-      ]);
+      setError(true);
+      toast.error('Failed to load activity feed');
     } finally {
       setLoading(false);
     }

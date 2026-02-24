@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   MessageSquare, Send, Phone, Video, Search, RefreshCw,
-  MoreVertical, Image, Paperclip, Smile, Check, CheckCheck,
-  ArrowLeft, Shield, Briefcase, Clock,
+  MoreVertical, Paperclip, Smile, Check, CheckCheck,
+  ArrowLeft,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -110,15 +110,8 @@ export function MessagingHubPage() {
   const handleSend = async () => {
     if (!replyText.trim() || !activeChatData) return;
     
-    try {
-      await api.post('/api/messages/send', {
-        platform: activeChatData.platform,
-        to: activeChatData.lastMessage.chat_id,
-        text: replyText,
-      });
-    } catch {
-      toast.error('Failed to send message');
-    }
+    const text = replyText;
+    setReplyText('');
     
     // Optimistic update
     const newMsg: Message = {
@@ -127,7 +120,7 @@ export function MessagingHubPage() {
       from: 'You',
       from_username: '',
       avatar: null,
-      content: replyText,
+      content: text,
       timestamp: new Date().toISOString(),
       chat_id: activeChatData.lastMessage.chat_id,
       chat_title: activeChatData.title,
@@ -136,7 +129,18 @@ export function MessagingHubPage() {
       is_from_me: true,
     };
     setMessages((prev) => [newMsg, ...prev]);
-    setReplyText('');
+    
+    try {
+      await api.post('/api/messages/send', {
+        platform: activeChatData.platform,
+        to: activeChatData.lastMessage.chat_id,
+        text,
+      });
+    } catch {
+      setMessages((prev) => prev.filter((m) => m.id !== newMsg.id));
+      setReplyText(text);
+      toast.error('Failed to send message');
+    }
   };
 
   const totalUnread = Object.values(chats).reduce((sum, c) => sum + c.unread, 0);
@@ -196,7 +200,7 @@ export function MessagingHubPage() {
                   onClick={() => setActivePlatform(p.id)}
                   className={cn(
                     'flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium whitespace-nowrap transition-all',
-                    activePlatform === p.id ? 'bg-white/15 text-white' : 'bg-white/5 text-zinc-400 hover:bg-white/10'
+                    activePlatform === p.id ? 'bg-white/[0.15] text-white' : 'bg-white/5 text-zinc-400 hover:bg-white/10'
                   )}
                 >
                   <span>{cfg.icon}</span>

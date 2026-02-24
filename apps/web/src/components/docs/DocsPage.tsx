@@ -236,9 +236,44 @@ export function DocsPage() {
   const currentSection = DOCS.find((s) => s.id === activeSection);
   const currentItem = currentSection?.items.find((i) => i.id === activeItem);
 
+  // Filter sections by search query
+  const filteredDocs = search.trim()
+    ? DOCS.map((section) => ({
+        ...section,
+        items: section.items.filter(
+          (item) =>
+            item.title.toLowerCase().includes(search.toLowerCase()) ||
+            item.content.toLowerCase().includes(search.toLowerCase())
+        ),
+      })).filter((s) => s.items.length > 0)
+    : DOCS;
+
   return (
-    <div className="flex-1 flex overflow-hidden">
-      {/* Sidebar */}
+    <div className="flex-1 flex flex-col md:flex-row overflow-hidden">
+      {/* Mobile Section Selector */}
+      <div className="md:hidden border-b border-[var(--border)] px-4 py-2 overflow-x-auto">
+        <div className="flex gap-2">
+          {DOCS.map((section) => (
+            <button
+              key={section.id}
+              onClick={() => {
+                setActiveSection(section.id);
+                setActiveItem(section.items[0].id);
+              }}
+              className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-lg whitespace-nowrap transition-colors ${
+                activeSection === section.id
+                  ? 'bg-blue-500/10 text-blue-400 border border-blue-500/30'
+                  : 'text-[var(--text-muted)] hover:text-[var(--text-secondary)] border border-transparent'
+              }`}
+            >
+              {section.icon}
+              {section.title}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {/* Desktop Sidebar */}
       <div className="w-64 border-r border-[var(--border)] overflow-y-auto p-4 hidden md:block">
         <div className="relative mb-4">
           <Search className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-[var(--text-muted)]" />
@@ -251,7 +286,7 @@ export function DocsPage() {
         </div>
 
         <nav className="space-y-4">
-          {DOCS.map((section) => (
+          {filteredDocs.map((section) => (
             <div key={section.id}>
               <button
                 onClick={() => {

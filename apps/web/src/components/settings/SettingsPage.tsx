@@ -422,7 +422,7 @@ function AppearanceSection() {
   const selectTheme = (id: string) => {
     setActiveTheme(id);
     document.documentElement.setAttribute('data-theme', id);
-    localStorage.setItem('volo-theme', id);
+    localStorage.setItem('volo-color-theme', id);
     toast.success(`Theme changed to ${themes.find(t => t.id === id)?.name}`);
   };
 

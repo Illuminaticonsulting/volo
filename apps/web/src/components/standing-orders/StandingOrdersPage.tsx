@@ -7,7 +7,6 @@ import {
   Play,
   Pause,
   Trash2,
-  Edit3,
   RefreshCw,
   Zap,
   Calendar,
@@ -25,8 +24,6 @@ interface StandingOrder {
   next_run: string | null;
   run_count: number;
 }
-
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
 
 export function StandingOrdersPage() {
   const [orders, setOrders] = useState<StandingOrder[]>([]);
@@ -85,13 +82,15 @@ export function StandingOrdersPage() {
   };
 
   const deleteOrder = async (id: string) => {
+    const prev = orders;
+    setOrders((o) => o.filter((order) => order.id !== id));
     try {
       await api.delete(`/api/standing-orders/${id}`);
       toast.success('Order deleted');
     } catch {
+      setOrders(prev);
       toast.error('Failed to delete order');
     }
-    setOrders((o) => o.filter((order) => order.id !== id));
   };
 
   const runNow = async (id: string) => {

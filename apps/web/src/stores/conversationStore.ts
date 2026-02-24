@@ -1,6 +1,8 @@
 'use client';
 
 import { create } from 'zustand';
+import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface Conversation {
   id: string;
@@ -23,8 +25,6 @@ interface ConversationState {
   setSearchQuery: (query: string) => void;
 }
 
-const API = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
-
 export const useConversationStore = create<ConversationState>((set, get) => ({
   conversations: [],
   loading: false,
@@ -34,46 +34,41 @@ export const useConversationStore = create<ConversationState>((set, get) => ({
     set({ loading: true });
     try {
       const q = get().searchQuery;
-      const url = q
-        ? `${API}/api/conversations?search=${encodeURIComponent(q)}`
-        : `${API}/api/conversations`;
-      const res = await fetch(url);
-      if (res.ok) {
-        const data = await res.json();
-        set({ conversations: data.conversations || [] });
-      }
+      const endpoint = q
+        ? `/api/conversations?search=${encodeURIComponent(q)}`
+        : '/api/conversations';
+      const data = await api.get<{ conversations: Conversation[] }>(endpoint);
+      set({ conversations: data?.conversations || [] });
     } catch {
-      // silently fail
+      // Keep existing conversations on error
     } finally {
       set({ loading: false });
     }
   },
 
   deleteConversation: async (id) => {
+    const prev = get().conversations;
+    set((s) => ({ conversations: s.conversations.filter((c) => c.id !== id) }));
     try {
-      await fetch(`${API}/api/conversations/${id}`, { method: 'DELETE' });
-      set((s) => ({
-        conversations: s.conversations.filter((c) => c.id !== id),
-      }));
+      await api.delete(`/api/conversations/${id}`);
     } catch {
-      // silently fail
+      set({ conversations: prev });
+      toast.error('Failed to delete conversation');
     }
   },
 
   renameConversation: async (id, title) => {
+    const prev = get().conversations;
+    set((s) => ({
+      conversations: s.conversations.map((c) =>
+        c.id === id ? { ...c, title } : c,
+      ),
+    }));
     try {
-      await fetch(`${API}/api/conversations/${id}`, {
-        method: 'PATCH',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ title }),
-      });
-      set((s) => ({
-        conversations: s.conversations.map((c) =>
-          c.id === id ? { ...c, title } : c,
-        ),
-      }));
+      await api.patch(`/api/conversations/${id}`, { title });
     } catch {
-      // silently fail
+      set({ conversations: prev });
+      toast.error('Failed to rename conversation');
     }
   },
 

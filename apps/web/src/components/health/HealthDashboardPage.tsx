@@ -10,13 +10,11 @@ import {
   Scale,
   Activity,
   TrendingUp,
-  TrendingDown,
   Flame,
   Droplets,
   Target,
   RefreshCw,
   Smartphone,
-  ArrowUp,
   ArrowDown,
   Minus,
 } from 'lucide-react';

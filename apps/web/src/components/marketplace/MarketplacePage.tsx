@@ -6,7 +6,6 @@ import {
   Star,
   Download,
   Search,
-  Filter,
   ExternalLink,
   Check,
   Zap,

@@ -5,6 +5,7 @@ import { Sidebar } from '@/components/layout/Sidebar';
 import { ChatArea } from '@/components/chat/ChatArea';
 import { CommandPalette } from '@/components/command/CommandPalette';
 import { TopBar } from '@/components/layout/TopBar';
+import { cn } from '@/lib/utils';
 import { DashboardPage } from '@/components/dashboard/DashboardPage';
 import { SettingsPage } from '@/components/settings/SettingsPage';
 import { ActivityFeed } from '@/components/activity/ActivityFeed';
@@ -25,7 +26,6 @@ import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { useAppStore } from '@/stores/appStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
-import { cn } from '@/lib/utils';
 
 export default function HomePage() {
   const { currentPage, sidebarOpen, commandPaletteOpen, toggleSidebar, setCommandPaletteOpen, setSidebarOpen } = useAppStore();

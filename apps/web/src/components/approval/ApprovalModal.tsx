@@ -1,5 +1,6 @@
 'use client';
 
+import { useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { ShieldAlert, Check, X, AlertTriangle } from 'lucide-react';
 
@@ -24,10 +25,25 @@ const riskColors = {
 export function ApprovalModal({ isOpen, onApprove, onDeny, action }: ApprovalModalProps) {
   const risk = action.risk || 'medium';
 
+  // Close on Escape key
+  const handleKeyDown = useCallback(
+    (e: KeyboardEvent) => {
+      if (e.key === 'Escape') onDeny();
+    },
+    [onDeny]
+  );
+
+  useEffect(() => {
+    if (isOpen) {
+      document.addEventListener('keydown', handleKeyDown);
+      return () => document.removeEventListener('keydown', handleKeyDown);
+    }
+  }, [isOpen, handleKeyDown]);
+
   return (
     <AnimatePresence>
       {isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4" role="dialog" aria-modal="true" aria-label="Action approval required">
           <motion.div
             initial={{ opacity: 0 }}
             animate={{ opacity: 1 }}

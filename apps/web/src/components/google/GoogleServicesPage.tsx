@@ -61,21 +61,8 @@ export function GoogleServicesPage() {
       setServices(data.services || []);
       setConnected(data.connected || false);
     } catch {
-      // Demo data
-      setServices([
-        { id: 'gmail', name: 'Gmail', icon: 'mail', connected: true, status: 'demo' },
-        { id: 'calendar', name: 'Google Calendar', icon: 'calendar', connected: true, status: 'demo' },
-        { id: 'drive', name: 'Google Drive', icon: 'cloud', connected: true, status: 'demo' },
-        { id: 'youtube', name: 'YouTube', icon: 'video', connected: true, status: 'demo' },
-        { id: 'contacts', name: 'Google Contacts', icon: 'contacts', connected: true, status: 'demo' },
-        { id: 'photos', name: 'Google Photos', icon: 'image', connected: true, status: 'demo' },
-        { id: 'tasks', name: 'Google Tasks', icon: 'tasks', connected: true, status: 'demo' },
-        { id: 'fitness', name: 'Google Fit', icon: 'fitness', connected: true, status: 'demo' },
-        { id: 'maps', name: 'Google Maps', icon: 'map', connected: true, status: 'demo' },
-        { id: 'keep', name: 'Google Keep', icon: 'sticky-note', connected: true, status: 'demo' },
-        { id: 'docs', name: 'Google Docs', icon: 'file-text', connected: true, status: 'demo' },
-        { id: 'sheets', name: 'Google Sheets', icon: 'table', connected: true, status: 'demo' },
-      ]);
+      setServices([]);
+      toast.error('Could not load Google services — check API connection');
     } finally {
       setLoading(false);
     }
@@ -86,7 +73,7 @@ export function GoogleServicesPage() {
       const data = await api.get<{ name?: string; email?: string; picture?: string }>('/api/google/profile');
       setProfile(data);
     } catch {
-      setProfile({ name: 'Volo User', email: 'user@gmail.com' });
+      setProfile(null);
     }
   };
 
@@ -95,7 +82,7 @@ export function GoogleServicesPage() {
       const data = await api.get<{ auth_url: string }>('/api/google/auth-url');
       window.open(data.auth_url, '_blank', 'width=500,height=600');
     } catch {
-      // Demo mode
+      toast.error('Could not get Google auth URL — check API credentials');
     }
   };
 

@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import {
   BarChart3,
-  TrendingUp,
   MessageSquare,
   Wrench,
   Clock,
@@ -28,7 +27,6 @@ interface ToolUsage {
 }
 
 import { api } from '@/lib/api';
-import { toast } from 'sonner';
 
 export function AnalyticsDashboard() {
   const [loading, setLoading] = useState(true);

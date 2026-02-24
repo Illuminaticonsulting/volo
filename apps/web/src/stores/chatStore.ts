@@ -1,8 +1,7 @@
 import { create } from 'zustand';
 import { generateId } from '@/lib/utils';
 import type { Message, ToolCall } from '@/components/chat/ChatMessage';
-
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+import { api } from '@/lib/api';
 
 interface ChatState {
   messages: Message[];
@@ -36,20 +35,14 @@ export const useChatStore = create<ChatState>((set, get) => ({
     }));
 
     try {
-      const response = await fetch(`${API_URL}/api/chat`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          message: content,
-          conversation_id: get().conversationId,
-          messages: get().messages.map((m) => ({
-            role: m.role,
-            content: m.content,
-          })),
-        }),
+      const response = await api.stream('/api/chat', {
+        message: content,
+        conversation_id: get().conversationId,
+        messages: get().messages.map((m) => ({
+          role: m.role,
+          content: m.content,
+        })),
       });
-
-      if (!response.ok) throw new Error('Failed to get response');
 
       const reader = response.body?.getReader();
       const decoder = new TextDecoder();
@@ -147,7 +140,7 @@ export const useChatStore = create<ChatState>((set, get) => ({
         id: generateId(),
         role: 'assistant',
         content:
-          "I'm having trouble connecting to the server. Make sure the API is running on port 8000.",
+          "I'm having trouble connecting right now. Please check your connection and try again.",
         timestamp: new Date(),
         status: 'error',
       };

@@ -45,8 +45,17 @@ export function NotificationCenter() {
         setPanelOpen(false);
       }
     };
-    if (panelOpen) document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const keyHandler = (e: KeyboardEvent) => {
+      if (e.key === 'Escape') setPanelOpen(false);
+    };
+    if (panelOpen) {
+      document.addEventListener('mousedown', handler);
+      document.addEventListener('keydown', keyHandler);
+    }
+    return () => {
+      document.removeEventListener('mousedown', handler);
+      document.removeEventListener('keydown', keyHandler);
+    };
   }, [panelOpen, setPanelOpen]);
 
   const formatTime = (ts: string) => {
@@ -65,6 +74,8 @@ export function NotificationCenter() {
       <button
         onClick={togglePanel}
         className="relative p-2 text-[var(--text-muted)] hover:text-[var(--text-primary)] transition-colors"
+        aria-label={`Notifications${unreadCount > 0 ? ` (${unreadCount} unread)` : ''}`}
+        aria-expanded={panelOpen}
       >
         <Bell className="w-5 h-5" />
         {unreadCount > 0 && (
@@ -82,7 +93,7 @@ export function NotificationCenter() {
             animate={{ opacity: 1, y: 0, scale: 1 }}
             exit={{ opacity: 0, y: 8, scale: 0.95 }}
             transition={{ duration: 0.15 }}
-            className="absolute right-0 top-full mt-2 w-80 bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden z-50"
+            className="absolute right-0 top-full mt-2 w-80 max-w-[calc(100vw-2rem)] bg-[var(--bg-secondary)] border border-[var(--border)] rounded-xl shadow-2xl overflow-hidden z-50"
           >
             {/* Header */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-[var(--border)]">
@@ -122,7 +133,7 @@ export function NotificationCenter() {
                 notifications.map((n) => (
                   <div
                     key={n.id}
-                    className={`flex items-start gap-3 px-4 py-3 border-b border-[var(--border)] last:border-0 cursor-pointer hover:bg-[var(--bg-primary)] transition-colors ${
+                    className={`group flex items-start gap-3 px-4 py-3 border-b border-[var(--border)] last:border-0 cursor-pointer hover:bg-[var(--bg-primary)] transition-colors ${
                       !n.read ? 'bg-blue-500/5' : ''
                     }`}
                     onClick={() => markRead(n.id)}
