@@ -26,6 +26,8 @@ export const viewport: Viewport = {
   width: 'device-width',
   initialScale: 1,
   maximumScale: 1,
+  viewportFit: 'cover',
+  interactiveWidget: 'resizes-content',
 };
 
 export default function RootLayout({
@@ -35,7 +37,7 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="dark" suppressHydrationWarning>
-      <body className="bg-surface-dark-0 text-zinc-200 min-h-screen antialiased">
+      <body className="bg-surface-dark-0 text-zinc-200 antialiased overscroll-none" style={{ minHeight: '100dvh' }}>
         <ThemeProvider>
           {children}
         </ThemeProvider>

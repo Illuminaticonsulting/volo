@@ -74,30 +74,35 @@ export function ChatMessage({ message }: ChatMessageProps) {
   return (
     <div
       className={cn(
-        'flex gap-4 animate-slide-up',
-        isUser ? 'flex-row-reverse' : 'flex-row'
+        'flex gap-2 sm:gap-3 tap-none group/msg',
+        isUser ? 'flex-row-reverse' : 'flex-row',
+        'animate-slide-up'
       )}
     >
-      {/* Avatar */}
+      {/* Avatar — hidden on mobile for user, always show for assistant */}
       <div
         className={cn(
-          'flex-shrink-0 w-8 h-8 rounded-xl flex items-center justify-center mt-1',
+          'flex-shrink-0 w-7 h-7 sm:w-8 sm:h-8 rounded-full sm:rounded-xl flex items-center justify-center mt-1',
           isUser
-            ? 'bg-zinc-700'
+            ? 'bg-zinc-700 hidden sm:flex'
             : 'bg-gradient-to-br from-brand-500 to-brand-700'
         )}
       >
         {isUser ? (
-          <User className="w-4 h-4 text-zinc-300" />
+          <User className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-zinc-300" />
         ) : (
-          <Brain className="w-4 h-4 text-white" />
+          <Brain className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-white" />
         )}
       </div>
 
       {/* Content */}
-      <div className={cn('flex-1 min-w-0', isUser ? 'text-right' : 'text-left')}>
-        <div className={cn('flex items-center gap-2 mb-1', isUser && 'justify-end')}>
-          <span className="text-xs font-medium text-zinc-400">
+      <div className={cn(
+        'flex flex-col min-w-0',
+        isUser ? 'items-end max-w-[85%] sm:max-w-[70%]' : 'items-start max-w-[90%] sm:max-w-[80%]'
+      )}>
+        {/* Name & time row */}
+        <div className={cn('flex items-center gap-2 mb-0.5 px-1', isUser && 'flex-row-reverse')}>
+          <span className="text-[11px] font-medium text-zinc-500">
             {isUser ? 'You' : 'Volo'}
           </span>
           <span className="text-[10px] text-zinc-600">
@@ -108,12 +113,13 @@ export function ChatMessage({ message }: ChatMessageProps) {
           </span>
         </div>
 
+        {/* Message bubble */}
         <div
           className={cn(
-            'inline-block rounded-2xl px-4 py-3 text-sm leading-relaxed max-w-full',
+            'rounded-2xl px-3 sm:px-4 py-2 sm:py-3 text-sm leading-relaxed',
             isUser
-              ? 'bg-brand-600/20 text-zinc-200 rounded-br-md'
-              : 'bg-surface-dark-2 text-zinc-300 rounded-bl-md border border-white/5'
+              ? 'bg-brand-600 text-white rounded-tr-md'
+              : 'bg-surface-dark-2 text-zinc-300 rounded-tl-md border border-white/5'
           )}
         >
           {/* Tool calls display */}
@@ -258,38 +264,38 @@ export function ChatMessage({ message }: ChatMessageProps) {
 
         {/* Assistant message actions */}
         {!isUser && message.status !== 'streaming' && message.content && (
-          <div className="flex items-center gap-1 mt-2">
+          <div className="flex items-center gap-0.5 mt-1 opacity-0 group-hover/msg:opacity-100 sm:transition-opacity">
             <button
               onClick={handleCopy}
-              className="p-1.5 rounded-lg hover:bg-white/5 transition-colors group"
+              className="p-1.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none"
               title="Copy"
             >
               {copied ? (
-                <Check className="w-3 h-3 text-emerald-400" />
+                <Check className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-emerald-400" />
               ) : (
-                <Copy className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400" />
+                <Copy className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-zinc-600 hover:text-zinc-400" />
               )}
             </button>
             <button
               onClick={handleRegenerate}
-              className="p-1.5 rounded-lg hover:bg-white/5 transition-colors group"
+              className="p-1.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none"
               title="Regenerate"
             >
-              <RotateCcw className="w-3 h-3 text-zinc-600 group-hover:text-zinc-400" />
+              <RotateCcw className="w-3.5 h-3.5 sm:w-3 sm:h-3 text-zinc-600 hover:text-zinc-400" />
             </button>
             <button
               onClick={() => handleFeedback('up')}
-              className="p-1.5 rounded-lg hover:bg-white/5 transition-colors group"
+              className="p-1.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none"
               title="Good response"
             >
-              <ThumbsUp className={cn('w-3 h-3', feedback === 'up' ? 'text-emerald-400' : 'text-zinc-600 group-hover:text-emerald-400')} />
+              <ThumbsUp className={cn('w-3.5 h-3.5 sm:w-3 sm:h-3', feedback === 'up' ? 'text-emerald-400' : 'text-zinc-600 hover:text-emerald-400')} />
             </button>
             <button
               onClick={() => handleFeedback('down')}
-              className="p-1.5 rounded-lg hover:bg-white/5 transition-colors group"
+              className="p-1.5 sm:p-1.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors tap-none"
               title="Bad response"
             >
-              <ThumbsDown className={cn('w-3 h-3', feedback === 'down' ? 'text-red-400' : 'text-zinc-600 group-hover:text-red-400')} />
+              <ThumbsDown className={cn('w-3.5 h-3.5 sm:w-3 sm:h-3', feedback === 'down' ? 'text-red-400' : 'text-zinc-600 hover:text-red-400')} />
             </button>
           </div>
         )}

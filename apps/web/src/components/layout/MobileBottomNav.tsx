@@ -26,9 +26,12 @@ export function MobileBottomNav() {
   const { currentPage, setPage } = useAppStore();
   const user = useAuthStore((s) => s.user);
 
+  // Hide on chat page — the chat input handles its own bottom-of-screen positioning
+  if (currentPage === 'chat') return null;
+
   return (
     <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-dark-1/95 backdrop-blur-xl border-t border-white/5 safe-area-bottom"
+      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-dark-1/95 backdrop-blur-xl border-t border-white/5 safe-area-bottom tap-none"
       role="navigation"
       aria-label="Main navigation"
     >
@@ -40,7 +43,7 @@ export function MobileBottomNav() {
               key={item.id}
               onClick={() => setPage(item.id)}
               className={cn(
-                'flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all min-w-[60px] min-h-[48px]',
+                'flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl transition-all min-w-[60px] min-h-[48px] active:scale-95 tap-none relative',
                 active
                   ? 'text-brand-400'
                   : 'text-zinc-500 active:text-zinc-300'

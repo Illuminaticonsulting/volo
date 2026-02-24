@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect, KeyboardEvent, useCallback } from 'react';
-import { Send, Mic, Paperclip, Sparkles, Brain, ArrowUp } from 'lucide-react';
+import { Send, Mic, Paperclip, ArrowUp, ArrowDown } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { ChatMessage, Message } from './ChatMessage';
 import { WelcomeScreen } from './WelcomeScreen';
@@ -13,30 +13,85 @@ export function ChatArea() {
   const { messages, isThinking, sendMessage } = useChatStore();
   const [input, setInput] = useState('');
   const [isRecording, setIsRecording] = useState(false);
+  const [showScrollDown, setShowScrollDown] = useState(false);
+  const [isKeyboardOpen, setIsKeyboardOpen] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
+  const messagesContainerRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const recognitionRef = useRef<any>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
-  };
+  // ─── Scroll management (Telegram-style) ───
+  const scrollToBottom = useCallback((instant = false) => {
+    if (messagesContainerRef.current) {
+      messagesContainerRef.current.scrollTo({
+        top: messagesContainerRef.current.scrollHeight,
+        behavior: instant ? 'instant' : 'smooth',
+      });
+    }
+  }, []);
 
+  // Auto-scroll on new messages (only if already near bottom)
   useEffect(() => {
-    scrollToBottom();
-  }, [messages, isThinking]);
+    if (!messagesContainerRef.current) return;
+    const el = messagesContainerRef.current;
+    const isNearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 150;
+    if (isNearBottom) {
+      scrollToBottom();
+    }
+  }, [messages, isThinking, scrollToBottom]);
 
-  // Auto-resize textarea
+  // Initial scroll to bottom when messages first load
+  useEffect(() => {
+    if (messages.length > 0) {
+      scrollToBottom(true);
+    }
+  }, [messages.length > 0]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Track scroll position for "scroll to bottom" button
+  useEffect(() => {
+    const el = messagesContainerRef.current;
+    if (!el) return;
+    const handleScroll = () => {
+      const distFromBottom = el.scrollHeight - el.scrollTop - el.clientHeight;
+      setShowScrollDown(distFromBottom > 200);
+    };
+    el.addEventListener('scroll', handleScroll, { passive: true });
+    return () => el.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  // ─── Mobile keyboard detection via visualViewport ───
+  useEffect(() => {
+    const vv = window.visualViewport;
+    if (!vv) return;
+
+    const onResize = () => {
+      const keyboardUp = vv.height < window.innerHeight * 0.75;
+      setIsKeyboardOpen(keyboardUp);
+      // On iOS, scroll the input into view when keyboard opens
+      if (keyboardUp && textareaRef.current) {
+        requestAnimationFrame(() => {
+          textareaRef.current?.scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        });
+      }
+    };
+
+    vv.addEventListener('resize', onResize);
+    return () => vv.removeEventListener('resize', onResize);
+  }, []);
+
+  // ─── Auto-resize textarea ───
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, 200)}px`;
+      const maxH = window.innerWidth < 640 ? 120 : 200;
+      textareaRef.current.style.height = `${Math.min(textareaRef.current.scrollHeight, maxH)}px`;
     }
   }, [input]);
 
-  // Speech recognition setup
+  // ─── Speech recognition ───
   const toggleRecording = useCallback(() => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const w = window as any;
     const SpeechRecognition = w.SpeechRecognition || w.webkitSpeechRecognition;
 
@@ -62,8 +117,7 @@ export function ChatArea() {
         transcript += event.results[i][0].transcript;
       }
       setInput((prev) => {
-        // Replace interim results, keep any existing text
-        const base = prev.replace(/\[listening...\]$/, '').trim();
+        const base = prev.replace(/\[listening\.\.\.\]$/, '').trim();
         return base ? `${base} ${transcript}` : transcript;
       });
     };
@@ -85,20 +139,19 @@ export function ChatArea() {
     toast.info('Listening... speak now');
   }, [isRecording]);
 
-  // File attachment handler
+  // ─── File attachment ───
   const handleFileSelect = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (!files?.length) return;
 
     const file = files[0];
-    const maxSize = 10 * 1024 * 1024; // 10MB
+    const maxSize = 10 * 1024 * 1024;
 
     if (file.size > maxSize) {
       toast.error('File too large (max 10MB)');
       return;
     }
 
-    // For text files, read and insert content
     if (file.type.startsWith('text/') || file.name.match(/\.(json|md|csv|yaml|yml|xml|html|css|js|ts|py|sh|sql)$/i)) {
       const reader = new FileReader();
       reader.onload = (ev) => {
@@ -109,23 +162,24 @@ export function ChatArea() {
       };
       reader.readAsText(file);
     } else {
-      // For non-text files, just reference them
       setInput((prev) => prev + `\n\n📎 Attached: **${file.name}** (${(file.size / 1024).toFixed(1)}KB, ${file.type || 'unknown type'})`);
       toast.success(`Referenced: ${file.name}`);
     }
 
-    // Reset file input
     if (fileInputRef.current) fileInputRef.current.value = '';
   }, []);
 
-  const handleSend = () => {
+  // ─── Send ───
+  const handleSend = useCallback(() => {
     if (!input.trim() || isThinking) return;
     sendMessage(input.trim());
     setInput('');
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
-  };
+    // Scroll to bottom after sending
+    requestAnimationFrame(() => scrollToBottom());
+  }, [input, isThinking, sendMessage, scrollToBottom]);
 
   const handleKeyDown = (e: KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -137,29 +191,49 @@ export function ChatArea() {
   const showWelcome = messages.length === 0;
 
   return (
-    <div className="flex-1 flex flex-col min-h-0">
+    <div
+      ref={chatContainerRef}
+      className="flex-1 flex flex-col min-h-0 relative"
+    >
       {/* Messages Area */}
-      <div className="flex-1 overflow-y-auto">
+      <div
+        ref={messagesContainerRef}
+        className="flex-1 overflow-y-auto overscroll-contain scroll-smooth-touch scrollbar-hide"
+      >
         {showWelcome ? (
           <WelcomeScreen onSuggestionClick={(text) => {
             setInput(text);
             textareaRef.current?.focus();
           }} />
         ) : (
-          <div className="max-w-3xl mx-auto px-4 py-6 space-y-6">
+          <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-1">
             {messages.map((message) => (
               <ChatMessage key={message.id} message={message} />
             ))}
             {isThinking && <ThinkingIndicator />}
-            <div ref={messagesEndRef} />
+            <div ref={messagesEndRef} className="h-1" />
           </div>
         )}
       </div>
 
-      {/* Input Area */}
-      <div className="border-t border-white/5 bg-surface-dark-1/30 backdrop-blur-xl">
-        <div className="max-w-3xl mx-auto px-4 py-4">
-          <div className="relative flex items-end gap-2 rounded-2xl bg-surface-dark-2 border border-white/10 focus-within:border-brand-500/50 transition-colors">
+      {/* Scroll to bottom FAB */}
+      {showScrollDown && !showWelcome && (
+        <button
+          onClick={() => scrollToBottom()}
+          className="absolute bottom-24 sm:bottom-28 right-4 sm:right-6 z-10 w-10 h-10 rounded-full bg-surface-dark-2 border border-white/10 flex items-center justify-center shadow-lg shadow-black/30 hover:bg-surface-dark-3 transition-all animate-fade-in tap-none active:scale-95"
+          aria-label="Scroll to bottom"
+        >
+          <ArrowDown className="w-4 h-4 text-zinc-400" />
+        </button>
+      )}
+
+      {/* Input Area — sticky bottom, above keyboard */}
+      <div className={cn(
+        'chat-input-container border-t border-white/5 bg-surface-dark-1/80 backdrop-blur-xl',
+        isKeyboardOpen && 'pb-0'
+      )}>
+        <div className="max-w-3xl mx-auto px-2 sm:px-4 py-2 sm:py-3">
+          <div className="relative flex items-end gap-1 sm:gap-2 rounded-2xl bg-surface-dark-2 border border-white/10 focus-within:border-brand-500/50 transition-colors">
             {/* Hidden file input */}
             <input
               ref={fileInputRef}
@@ -172,10 +246,10 @@ export function ChatArea() {
             {/* Attach */}
             <button
               onClick={() => fileInputRef.current?.click()}
-              className="p-3 text-zinc-500 hover:text-zinc-300 transition-colors"
+              className="p-2.5 sm:p-3 text-zinc-500 hover:text-zinc-300 active:text-zinc-200 transition-colors tap-none flex-shrink-0"
               title="Attach file"
             >
-              <Paperclip className="w-4 h-4" />
+              <Paperclip className="w-5 h-5 sm:w-4 sm:h-4" />
             </button>
 
             {/* Textarea */}
@@ -184,48 +258,60 @@ export function ChatArea() {
               value={input}
               onChange={(e) => setInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              placeholder="Talk to Volo..."
+              onFocus={() => {
+                // On mobile, scroll to bottom when input is focused
+                if (window.innerWidth < 640) {
+                  requestAnimationFrame(() => scrollToBottom());
+                }
+              }}
+              placeholder="Message Volo..."
               rows={1}
-              className="flex-1 py-3 bg-transparent text-zinc-200 placeholder-zinc-600 resize-none outline-none text-sm leading-relaxed max-h-[200px]"
+              className="flex-1 py-2.5 sm:py-3 bg-transparent text-zinc-200 placeholder-zinc-600 resize-none outline-none text-[16px] sm:text-sm leading-relaxed max-h-[120px] sm:max-h-[200px]"
+              style={{ fontSize: '16px' }} // Prevents iOS zoom on focus
+              enterKeyHint="send"
+              autoComplete="off"
             />
 
             {/* Right side buttons */}
-            <div className="flex items-center gap-1 p-2">
-              {/* Voice */}
-              <button
-                onClick={toggleRecording}
-                className={cn(
-                  'p-2 rounded-lg transition-colors',
-                  isRecording
-                    ? 'bg-red-500/20 text-red-400 animate-pulse-soft'
-                    : 'text-zinc-500 hover:text-zinc-300 hover:bg-white/5'
-                )}
-                title={isRecording ? 'Stop recording' : 'Voice input'}
-              >
-                <Mic className="w-4 h-4" />
-              </button>
-
-              {/* Send */}
-              <button
-                onClick={handleSend}
-                disabled={!input.trim() || isThinking}
-                className={cn(
-                  'p-2 rounded-lg transition-all',
-                  input.trim() && !isThinking
-                    ? 'bg-brand-600 text-white hover:bg-brand-500'
-                    : 'text-zinc-600 cursor-not-allowed'
-                )}
-              >
-                <ArrowUp className="w-4 h-4" />
-              </button>
+            <div className="flex items-center gap-0.5 p-1.5 sm:p-2 flex-shrink-0">
+              {/* Voice — show when input is empty */}
+              {!input.trim() ? (
+                <button
+                  onClick={toggleRecording}
+                  className={cn(
+                    'p-2 sm:p-2 rounded-full transition-all tap-none active:scale-95',
+                    isRecording
+                      ? 'bg-red-500/20 text-red-400 animate-pulse-soft'
+                      : 'text-zinc-500 hover:text-zinc-300 active:text-zinc-200'
+                  )}
+                  title={isRecording ? 'Stop recording' : 'Voice input'}
+                >
+                  <Mic className="w-5 h-5 sm:w-4 sm:h-4" />
+                </button>
+              ) : (
+                /* Send — show when input has text */
+                <button
+                  onClick={handleSend}
+                  disabled={isThinking}
+                  className={cn(
+                    'p-2 rounded-full transition-all tap-none active:scale-90',
+                    !isThinking
+                      ? 'bg-brand-600 text-white shadow-lg shadow-brand-600/20 hover:bg-brand-500'
+                      : 'bg-zinc-700 text-zinc-500 cursor-not-allowed'
+                  )}
+                  aria-label="Send message"
+                >
+                  <ArrowUp className="w-5 h-5 sm:w-4 sm:h-4" />
+                </button>
+              )}
             </div>
           </div>
 
-          {/* Bottom hint */}
-          <p className="text-[10px] text-zinc-600 text-center mt-2">
-            Volo can make mistakes. Verify important actions. Press{' '}
-            <kbd className="px-1 py-0.5 rounded bg-white/5 font-mono">Enter</kbd> to send,{' '}
-            <kbd className="px-1 py-0.5 rounded bg-white/5 font-mono">Shift+Enter</kbd> for new line.
+          {/* Bottom hint — desktop only */}
+          <p className="hidden sm:block text-[10px] text-zinc-600 text-center mt-1.5">
+            Press{' '}
+            <kbd className="px-1 py-0.5 rounded bg-white/5 font-mono text-[9px]">Enter</kbd> to send,{' '}
+            <kbd className="px-1 py-0.5 rounded bg-white/5 font-mono text-[9px]">Shift+Enter</kbd> for new line
           </p>
         </div>
       </div>

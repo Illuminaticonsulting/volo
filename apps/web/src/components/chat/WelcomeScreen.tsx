@@ -79,38 +79,38 @@ export function WelcomeScreen({ onSuggestionClick }: WelcomeScreenProps) {
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center min-h-full px-4 py-12">
+    <div className="flex flex-col items-center justify-center min-h-full px-3 sm:px-4 py-6 sm:py-12">
       {/* Logo & Welcome */}
-      <div className="mb-10 text-center">
-        <div className="w-16 h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center mx-auto mb-6 shadow-lg shadow-brand-500/20">
-          <Brain className="w-8 h-8 text-white" />
+      <div className="mb-6 sm:mb-10 text-center">
+        <div className="w-12 h-12 sm:w-16 sm:h-16 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center mx-auto mb-4 sm:mb-6 shadow-lg shadow-brand-500/20">
+          <Brain className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
         </div>
-        <h1 className="text-3xl font-bold text-white mb-3">
+        <h1 className="text-2xl sm:text-3xl font-bold text-white mb-2 sm:mb-3">
           Welcome to <span className="gradient-text">Volo</span>
         </h1>
-        <p className="text-zinc-500 text-sm max-w-md">
+        <p className="text-zinc-500 text-xs sm:text-sm max-w-md px-2">
           Your AI operating system. I can manage your code, trades, communications,
-          and life — all from this conversation. Let&apos;s set things up.
+          and life — all from this conversation.
         </p>
       </div>
 
       {/* Suggestion Grid */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 max-w-3xl w-full">
+      <div className="grid grid-cols-2 sm:grid-cols-2 lg:grid-cols-3 gap-2 sm:gap-3 max-w-3xl w-full">
         {suggestions.map((suggestion) => (
           <button
             key={suggestion.title}
             onClick={() => onSuggestionClick(suggestion.prompt)}
-            className="group flex flex-col items-start gap-3 p-4 rounded-2xl bg-surface-dark-2 border border-white/5 hover:border-brand-500/30 hover:bg-surface-dark-3 transition-all text-left"
+            className="group flex flex-col items-start gap-2 sm:gap-3 p-3 sm:p-4 rounded-2xl bg-surface-dark-2 border border-white/5 hover:border-brand-500/30 active:border-brand-500/50 hover:bg-surface-dark-3 transition-all text-left tap-none active:scale-[0.98]"
           >
-            <div className="w-10 h-10 rounded-xl bg-brand-600/10 flex items-center justify-center group-hover:bg-brand-600/20 transition-colors">
-              <suggestion.icon className="w-5 h-5 text-brand-400" />
+            <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-xl bg-brand-600/10 flex items-center justify-center group-hover:bg-brand-600/20 transition-colors">
+              <suggestion.icon className="w-4 h-4 sm:w-5 sm:h-5 text-brand-400" />
             </div>
             <div>
-              <h3 className="text-sm font-medium text-zinc-200 mb-1 flex items-center gap-2">
+              <h3 className="text-xs sm:text-sm font-medium text-zinc-200 mb-0.5 sm:mb-1 flex items-center gap-1 sm:gap-2">
                 {suggestion.title}
                 <ArrowRight className="w-3 h-3 text-zinc-600 group-hover:text-brand-400 group-hover:translate-x-1 transition-all" />
               </h3>
-              <p className="text-xs text-zinc-500 leading-relaxed">
+              <p className="text-[10px] sm:text-xs text-zinc-500 leading-relaxed line-clamp-2">
                 {suggestion.description}
               </p>
             </div>
@@ -119,10 +119,10 @@ export function WelcomeScreen({ onSuggestionClick }: WelcomeScreenProps) {
       </div>
 
       {/* Status indicators */}
-      <div className="flex items-center gap-6 mt-10 text-[10px] text-zinc-600">
+      <div className="flex items-center gap-4 sm:gap-6 mt-6 sm:mt-10 text-[10px] text-zinc-600">
         <div className="flex items-center gap-1.5">
           <span className={`w-1.5 h-1.5 rounded-full ${status.apiOnline ? 'bg-emerald-500' : 'bg-red-500'}`} />
-          {status.apiOnline ? 'Agent Online' : 'Agent Offline'}
+          {status.apiOnline ? 'Online' : 'Offline'}
         </div>
         <div className="flex items-center gap-1.5">
           <span className={`w-1.5 h-1.5 rounded-full ${status.integrations > 0 ? 'bg-emerald-500' : 'bg-zinc-600'}`} />

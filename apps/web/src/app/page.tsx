@@ -25,6 +25,7 @@ import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { useAppStore } from '@/stores/appStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
+import { cn } from '@/lib/utils';
 
 export default function HomePage() {
   const { currentPage, sidebarOpen, commandPaletteOpen, toggleSidebar, setCommandPaletteOpen, setSidebarOpen } = useAppStore();
@@ -108,7 +109,7 @@ export default function HomePage() {
   // Auth loading state
   if (isLoading) {
     return (
-      <div className="flex h-screen items-center justify-center bg-surface-dark-0 dark:bg-surface-dark-0 light:bg-white">
+      <div className="flex h-screen-safe items-center justify-center bg-surface-dark-0 dark:bg-surface-dark-0 light:bg-white">
         <div className="flex flex-col items-center gap-4">
           <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-brand-500 to-brand-700 flex items-center justify-center animate-pulse">
             <svg className="w-6 h-6 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
@@ -131,7 +132,7 @@ export default function HomePage() {
         <OnboardingWizard onComplete={() => setShowOnboarding(false)} />
       )}
 
-      <div className="flex h-screen overflow-hidden">
+      <div className="flex h-screen-safe overflow-hidden">
         {/* Mobile overlay */}
         {sidebarOpen && (
           <div
@@ -144,7 +145,11 @@ export default function HomePage() {
         <Sidebar />
 
         {/* Main Content */}
-        <div className="flex-1 flex flex-col min-w-0 pb-16 md:pb-0">
+        <div className={cn(
+          'flex-1 flex flex-col min-w-0',
+          // On mobile: add bottom padding for nav bar, except on chat page (input handles it)
+          currentPage !== 'chat' ? 'pb-16 md:pb-0' : 'pb-0'
+        )}>
           <TopBar
             onToggleSidebar={toggleSidebar}
             onOpenCommandPalette={() => setCommandPaletteOpen(true)}

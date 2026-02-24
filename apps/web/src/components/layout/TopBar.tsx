@@ -60,24 +60,24 @@ export function TopBar({ onToggleSidebar, onOpenCommandPalette }: TopBarProps) {
 
   return (
     <header
-      className="h-14 flex items-center justify-between px-4 border-b border-white/5 bg-surface-dark-1/50 backdrop-blur-xl"
+      className="h-12 sm:h-14 flex items-center justify-between px-2 sm:px-4 border-b border-white/5 bg-surface-dark-1/50 backdrop-blur-xl"
       role="banner"
     >
       {/* Left */}
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-1 sm:gap-3 min-w-0">
         <Tooltip content="Toggle sidebar (⌘B)">
           <button
             onClick={onToggleSidebar}
-            className="p-2.5 rounded-lg hover:bg-white/5 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
+            className="p-2 sm:p-2.5 rounded-lg hover:bg-white/5 active:bg-white/10 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center tap-none"
             aria-label="Toggle sidebar"
           >
             <PanelLeft className="w-4 h-4 text-zinc-400" />
           </button>
         </Tooltip>
-        <nav aria-label="Breadcrumb" className="text-sm text-zinc-500">
-          <span className="text-zinc-300 font-medium">Volo</span>
-          <span className="mx-2 text-zinc-700" aria-hidden="true">/</span>
-          <span aria-current="page">{pageLabels[currentPage] || 'New Conversation'}</span>
+        <nav aria-label="Breadcrumb" className="text-sm text-zinc-500 truncate">
+          <span className="text-zinc-300 font-medium hidden sm:inline">Volo</span>
+          <span className="mx-2 text-zinc-700 hidden sm:inline" aria-hidden="true">/</span>
+          <span aria-current="page" className="truncate">{pageLabels[currentPage] || 'New Conversation'}</span>
         </nav>
       </div>
 
@@ -85,11 +85,11 @@ export function TopBar({ onToggleSidebar, onOpenCommandPalette }: TopBarProps) {
       <Tooltip content="Search or ask anything (⌘K)">
         <button
           onClick={onOpenCommandPalette}
-          className="flex items-center gap-3 px-4 py-2 rounded-xl bg-white/5 hover:bg-white/8 border border-white/5 transition-colors group min-h-[44px]"
+          className="flex items-center gap-2 sm:gap-3 px-2.5 sm:px-4 py-1.5 sm:py-2 rounded-xl bg-white/5 hover:bg-white/8 border border-white/5 transition-colors group min-h-[40px] sm:min-h-[44px] tap-none active:scale-[0.98]"
           aria-label="Open command palette"
         >
           <Search className="w-3.5 h-3.5 text-zinc-500" />
-          <span className="text-sm text-zinc-500 hidden sm:inline">Search or ask anything...</span>
+          <span className="text-xs sm:text-sm text-zinc-500 hidden sm:inline">Search or ask anything...</span>
           <kbd className="hidden sm:flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-white/5 text-[10px] text-zinc-500 font-mono" aria-hidden="true">
             <Command className="w-2.5 h-2.5" />K
           </kbd>

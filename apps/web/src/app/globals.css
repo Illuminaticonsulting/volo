@@ -87,11 +87,95 @@ body {
   50% { opacity: 0; }
 }
 
+@keyframes slide-up {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.25s ease-out;
+}
+
+.animate-fade-in {
+  animation: fade-in 0.2s ease-out;
+}
+
 .cursor-blink::after {
   content: '▊';
   animation: blink 1s infinite;
   color: var(--brand-400);
   margin-left: 2px;
+}
+
+/* ─── Mobile Chat Perfection ─── */
+
+/* Use dvh for full-height layouts — accounts for mobile browser chrome & keyboard */
+.h-screen-safe {
+  height: 100vh;
+  height: 100dvh;
+}
+
+/* Smooth momentum scrolling on iOS */
+.scroll-smooth-touch {
+  -webkit-overflow-scrolling: touch;
+  overscroll-behavior: contain;
+  scroll-behavior: smooth;
+}
+
+/* Prevent pull-to-refresh on chat scroll areas */
+.overscroll-contain {
+  overscroll-behavior: contain;
+}
+
+/* Hide scrollbar but keep scrolling (chat messages) */
+.scrollbar-hide {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+}
+
+/* Prevent mobile tap highlight */
+.tap-none {
+  -webkit-tap-highlight-color: transparent;
+}
+
+/* Keyboard-aware input container — sticks to bottom above keyboard */
+.chat-input-container {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+}
+
+/* Pulse animation for recording */
+@keyframes pulse-soft {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.5; }
+}
+.animate-pulse-soft {
+  animation: pulse-soft 1.5s ease-in-out infinite;
+}
+
+/* Thinking animation */
+@keyframes thinking {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.05); }
+}
+.animate-thinking {
+  animation: thinking 2s ease-in-out infinite;
+}
+
+/* Mobile bottom nav safe area */
+@supports (padding-bottom: env(safe-area-inset-bottom)) {
+  .safe-bottom-pad {
+    padding-bottom: calc(env(safe-area-inset-bottom, 0px) + 64px);
+  }
 }
 
 /* Message streaming */
