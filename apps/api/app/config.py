@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_expiry_hours: int = 24
 
+    # Authenticator Vault
+    volo_vault_key: str = ""
+
     # White Label
     default_tenant_id: str = "volo-default"
     default_tenant_name: str = "Volo"
