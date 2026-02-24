@@ -7,7 +7,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential curl && \
     rm -rf /var/lib/apt/lists/*
 
-COPY requirements.txt .
+COPY apps/api/requirements.txt .
 RUN pip install --no-cache-dir --prefix=/install -r requirements.txt
 
 # ── Production image ──
@@ -23,8 +23,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 # Copy installed packages from builder
 COPY --from=builder /install /usr/local
 
-# Copy app code
-COPY . .
+# Copy API code
+COPY apps/api/ .
+
+# Copy agent.js so the setup endpoint can serve it
+COPY apps/agent/agent.js /app/agent.js
 
 # Non-root user
 RUN useradd -m volo && chown -R volo:volo /app

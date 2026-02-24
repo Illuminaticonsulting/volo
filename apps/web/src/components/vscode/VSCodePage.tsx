@@ -13,8 +13,7 @@ import {
   Terminal,
   Copy,
   Check,
-  Wifi,
-  WifiOff,
+
   Code,
   MessageSquare,
   Send,
@@ -646,15 +645,6 @@ export function VSCodePage() {
     }
   };
 
-  // Copy key
-  const copyKey = () => {
-    if (agentKey) {
-      navigator.clipboard.writeText(agentKey);
-      setKeyCopied(true);
-      setTimeout(() => setKeyCopied(false), 2000);
-    }
-  };
-
   const filteredRepos = repos.filter(
     (r) =>
       r.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
@@ -663,6 +653,19 @@ export function VSCodePage() {
 
   // ── Setup Phase ────────────────────────────────────────────
   if (view === 'setup') {
+    const setupCommand = agentKey
+      ? `curl -sL "${API_URL}/api/setup/${agentKey}" | bash`
+      : null;
+
+    const copySetupCommand = () => {
+      if (setupCommand) {
+        navigator.clipboard.writeText(setupCommand);
+        setKeyCopied(true);
+        toast.success('Copied to clipboard');
+        setTimeout(() => setKeyCopied(false), 2000);
+      }
+    };
+
     return (
       <div className="flex-1 overflow-y-auto">
         <div className="max-w-3xl mx-auto px-4 sm:px-6 py-8">
@@ -671,31 +674,31 @@ export function VSCodePage() {
             <div className="w-16 h-16 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-blue-500 to-violet-600 flex items-center justify-center">
               <Monitor className="w-8 h-8 text-white" />
             </div>
-            <h1 className="text-2xl font-bold text-zinc-100 mb-2">VS Code + Claude</h1>
+            <h1 className="text-2xl font-bold text-zinc-100 mb-2">Code from Anywhere</h1>
             <p className="text-zinc-400 text-sm max-w-md mx-auto">
-              Code from your phone using your machine&apos;s power. Open multiple repos, each in its own VS Code window, with independent chat sessions.
+              Connect your computer, then code from your phone using your machine&apos;s power.
             </p>
           </div>
 
-          {/* Status Card */}
+          {/* Main Card */}
           <div className="rounded-2xl bg-surface-dark-2 border border-white/5 p-6 mb-6">
             <div className="flex items-center justify-between mb-4">
-              <h2 className="text-sm font-semibold text-zinc-200">Desktop Agent</h2>
+              <h2 className="text-sm font-semibold text-zinc-200">My Computer</h2>
               <div className={cn(
                 'flex items-center gap-2 px-3 py-1 rounded-full text-xs font-medium',
                 agentOnline
                   ? 'bg-emerald-500/10 text-emerald-400 border border-emerald-500/20'
                   : 'bg-zinc-800 text-zinc-500 border border-white/5'
               )}>
-                {agentOnline ? <Wifi className="w-3 h-3" /> : <WifiOff className="w-3 h-3" />}
+                <Circle className={cn('w-2 h-2 fill-current', agentOnline ? 'text-emerald-400' : 'text-red-400')} />
                 {agentOnline ? 'Online' : 'Offline'}
               </div>
             </div>
 
             {!agentKey ? (
               <div className="space-y-4">
-                <p className="text-xs text-zinc-500">
-                  Generate an agent key to pair your desktop machine with Volo.
+                <p className="text-sm text-zinc-400">
+                  Generate a connection to pair your desktop with Volo.
                 </p>
 
                 <button
@@ -732,50 +735,61 @@ export function VSCodePage() {
                   onClick={handleGenerateKey}
                   className="w-full py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-colors min-h-[48px]"
                 >
-                  Generate Agent Key
+                  Connect My Computer
+                </button>
+              </div>
+            ) : agentOnline ? (
+              <div className="space-y-4">
+                <div className="rounded-xl bg-emerald-500/5 border border-emerald-500/10 p-4 text-center">
+                  <p className="text-sm text-emerald-400 font-medium">Your computer is connected!</p>
+                </div>
+                <button
+                  onClick={() => {
+                    fetchRepos();
+                    setView('repos');
+                  }}
+                  className="w-full py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2 min-h-[48px]"
+                >
+                  Browse Repositories
+                  <ArrowRight className="w-4 h-4" />
                 </button>
               </div>
             ) : (
               <div className="space-y-4">
-                <div>
-                  <p className="text-xs text-zinc-500 mb-2">Your Agent Key:</p>
-                  <div className="flex items-center gap-2">
-                    <code className="flex-1 px-3 py-2 rounded-lg bg-surface-dark-0 border border-white/5 text-xs text-zinc-300 font-mono truncate">
-                      {agentKey}
-                    </code>
-                    <button
-                      onClick={copyKey}
-                      className="p-2 rounded-lg hover:bg-white/5 transition-colors min-h-[44px] min-w-[44px] flex items-center justify-center"
-                      aria-label="Copy agent key"
-                    >
-                      {keyCopied ? <Check className="w-4 h-4 text-emerald-400" /> : <Copy className="w-4 h-4 text-zinc-400" />}
-                    </button>
+                <p className="text-sm text-zinc-400">
+                  Agent not connected. Run the setup command on your computer:
+                </p>
+
+                {/* Tab selector */}
+                <div className="flex rounded-lg overflow-hidden border border-white/10">
+                  <button className="flex-1 px-4 py-2 text-xs font-medium bg-brand-600/20 text-brand-300 border-r border-white/10">
+                    Mac/Linux
+                  </button>
+                  <button className="flex-1 px-4 py-2 text-xs font-medium text-zinc-500 hover:bg-white/5">
+                    Windows
+                  </button>
+                </div>
+
+                {/* One-liner command */}
+                <div
+                  onClick={copySetupCommand}
+                  className="relative cursor-pointer group rounded-xl bg-surface-dark-0 border border-blue-500/20 p-4 hover:border-blue-500/40 transition-colors"
+                >
+                  <code className="text-xs text-blue-300 font-mono break-all leading-relaxed select-all">
+                    {setupCommand}
+                  </code>
+                  <div className="absolute top-3 right-3">
+                    {keyCopied ? (
+                      <Check className="w-4 h-4 text-emerald-400" />
+                    ) : (
+                      <Copy className="w-4 h-4 text-zinc-500 group-hover:text-zinc-300 transition-colors" />
+                    )}
                   </div>
                 </div>
 
-                {agentOnline ? (
-                  <button
-                    onClick={() => {
-                      fetchRepos();
-                      setView('repos');
-                    }}
-                    className="w-full py-3 rounded-xl bg-brand-600 hover:bg-brand-500 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2 min-h-[48px]"
-                  >
-                    Browse Repositories
-                    <ArrowRight className="w-4 h-4" />
-                  </button>
-                ) : (
-                  <div className="rounded-xl bg-amber-500/5 border border-amber-500/10 p-4">
-                    <p className="text-xs text-amber-400 font-medium mb-2">Set up your desktop</p>
-                    <ol className="text-xs text-zinc-400 space-y-1.5 list-decimal list-inside">
-                      <li>On your laptop, open Terminal</li>
-                      <li><code className="text-zinc-300">cd ~/projects/volo/apps/agent</code></li>
-                      <li><code className="text-zinc-300">cp .env.example .env</code></li>
-                      <li>Paste your agent key in <code className="text-zinc-300">.env</code></li>
-                      <li><code className="text-zinc-300">npm install && npm start</code></li>
-                    </ol>
-                  </div>
-                )}
+                <p className="text-xs text-zinc-600 text-center">
+                  Keep the terminal open. Status will switch to <span className="text-emerald-400">● Online</span>.
+                </p>
               </div>
             )}
           </div>

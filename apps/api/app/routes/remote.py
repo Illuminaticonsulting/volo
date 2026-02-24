@@ -9,8 +9,8 @@ import json
 import asyncio
 from typing import Optional
 
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Query
-from fastapi.responses import StreamingResponse
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Query, Request
+from fastapi.responses import StreamingResponse, PlainTextResponse
 from pydantic import BaseModel
 import httpx
 
@@ -110,6 +110,116 @@ async def generate_agent_key(body: GenerateKeyRequest):
         info = remote_manager.agent_keys.get(body.user_id, {})
         info["github_token"] = body.github_token
     return {"agent_key": key, "is_new": True, "online": False}
+
+
+# ── One-line Setup Script ─────────────────────────────────────
+
+@router.get("/setup/{agent_key}")
+async def get_setup_script(agent_key: str, request: Request):
+    """
+    Returns a bash script that installs and starts the Volo desktop agent.
+    Usage: curl -sL "https://volo.kingpinstrategies.com/api/setup/AGENT_KEY" | bash
+    """
+    # Determine server URL from the incoming request
+    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
+    host = request.headers.get("x-forwarded-host", request.headers.get("host", "localhost:8000"))
+    base_url = f"{scheme}://{host}"
+    ws_scheme = "wss" if scheme == "https" else "ws"
+    ws_url = f"{ws_scheme}://{host}"
+
+    script = f'''#!/bin/bash
+# ══════════════════════════════════════════════
+#  Volo Desktop Agent — One-Line Install
+# ══════════════════════════════════════════════
+set -e
+
+AGENT_KEY="{agent_key}"
+SERVER_URL="{ws_url}"
+INSTALL_DIR="$HOME/.volo"
+
+echo ""
+echo "══════════════════════════════════════════"
+echo "  🚀 Setting up Volo Desktop Agent"
+echo "══════════════════════════════════════════"
+echo ""
+
+# ── Check Node.js ────────────────────────────
+if ! command -v node &>/dev/null; then
+    echo "❌ Node.js not found."
+    if [[ "$OSTYPE" == "darwin"* ]]; then
+        echo "   Install: brew install node"
+    else
+        echo "   Install: https://nodejs.org"
+    fi
+    exit 1
+fi
+echo "✅ Node.js $(node -v)"
+
+# ── Create install directory ─────────────────
+mkdir -p "$INSTALL_DIR"
+cd "$INSTALL_DIR"
+echo "📁 Installing to $INSTALL_DIR"
+
+# ── Write agent.js ───────────────────────────
+echo "📥 Downloading agent..."
+curl -sL "{base_url}/api/setup/{agent_key}/agent.js" -o agent.js
+
+# ── Write package.json ───────────────────────
+cat > package.json << 'PKGJSON'
+{{
+  "name": "volo-desktop-agent",
+  "version": "1.0.0",
+  "main": "agent.js",
+  "scripts": {{ "start": "node agent.js" }},
+  "dependencies": {{ "ws": "^8.16.0", "dotenv": "^16.4.0" }}
+}}
+PKGJSON
+
+# ── Write .env ───────────────────────────────
+cat > .env << ENVFILE
+VOLO_AGENT_KEY=$AGENT_KEY
+VOLO_SERVER_URL=$SERVER_URL
+WORK_DIR=~/Projects
+ENVFILE
+
+# ── Install dependencies ─────────────────────
+echo "📦 Installing dependencies..."
+npm install --production --silent 2>/dev/null
+
+echo ""
+echo "══════════════════════════════════════════"
+echo "  ✅ Volo agent installed!"
+echo "  📂 $INSTALL_DIR"
+echo "══════════════════════════════════════════"
+echo ""
+echo "  Starting agent..."
+echo ""
+
+# ── Start agent ──────────────────────────────
+node agent.js
+'''
+    return PlainTextResponse(content=script, media_type="text/plain")
+
+
+@router.get("/setup/{agent_key}/agent.js")
+async def get_agent_js(agent_key: str):
+    """Serve the agent.js file for the setup script to download."""
+    possible_paths = [
+        "/app/agent.js",  # Docker path (copied during build)
+        os.path.join(os.path.dirname(__file__), "../../../../apps/agent/agent.js"),  # Local dev
+        os.path.join(os.getcwd(), "apps/agent/agent.js"),
+    ]
+    for p in possible_paths:
+        resolved = os.path.realpath(p)
+        if os.path.exists(resolved):
+            with open(resolved) as f:
+                return PlainTextResponse(content=f.read(), media_type="application/javascript")
+
+    # Fallback: serve a minimal agent inline
+    return PlainTextResponse(
+        content="console.error('Agent file not found on server. Please check deployment.'); process.exit(1);",
+        media_type="application/javascript",
+    )
 
 
 @router.get("/remote/agent-status")

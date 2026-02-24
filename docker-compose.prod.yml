@@ -47,8 +47,8 @@ services:
   # ── API (FastAPI) ──────────────────────────────
   api:
     build:
-      context: ./apps/api
-      dockerfile: Dockerfile.prod
+      context: .
+      dockerfile: apps/api/Dockerfile.prod
     container_name: volo-api
     restart: always
     environment:
