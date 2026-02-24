@@ -1,17 +1,16 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Mail, Calendar, Cloud, Youtube, Users, Image, CheckSquare, Heart,
-  MapPin, StickyNote, FileText, Table2, ChevronRight, Shield, LogIn,
-  RefreshCw, CheckCircle, AlertCircle, ExternalLink,
+  ChevronRight, Shield, LogIn, RefreshCw, CheckCircle, AlertCircle,
+  ExternalLink, Inbox, Clock,
 } from 'lucide-react';
-import { motion, AnimatePresence } from 'framer-motion';
+import { motion } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
 import { useAppStore } from '@/stores/appStore';
-import { useChatStore } from '@/stores/chatStore';
 
 interface GoogleService {
   id: string;
@@ -21,11 +20,30 @@ interface GoogleService {
   status: string;
 }
 
+interface GmailMessage {
+  id: string;
+  thread_id: string;
+  subject: string;
+  from: string;
+  date: string;
+  snippet: string;
+  unread: boolean;
+}
+
+interface CalendarEvent {
+  id: string;
+  summary: string;
+  description: string;
+  start: string;
+  end: string;
+  location: string;
+  status: string;
+  html_link: string;
+}
+
 const iconMap: Record<string, typeof Mail> = {
   mail: Mail, calendar: Calendar, cloud: Cloud, video: Youtube,
   contacts: Users, image: Image, tasks: CheckSquare, fitness: Heart,
-  map: MapPin, 'sticky-note': StickyNote, 'file-text': FileText,
-  table: Table2,
 };
 
 const colorMap: Record<string, string> = {
@@ -37,10 +55,6 @@ const colorMap: Record<string, string> = {
   photos: 'from-amber-400 to-orange-500',
   tasks: 'from-blue-500 to-indigo-500',
   fitness: 'from-green-500 to-emerald-600',
-  maps: 'from-green-600 to-green-700',
-  keep: 'from-yellow-400 to-yellow-500',
-  docs: 'from-blue-500 to-blue-600',
-  sheets: 'from-green-500 to-green-600',
 };
 
 export function GoogleServicesPage() {
@@ -49,56 +63,128 @@ export function GoogleServicesPage() {
   const [loading, setLoading] = useState(true);
   const [profile, setProfile] = useState<{ name?: string; email?: string; picture?: string } | null>(null);
   const [activeService, setActiveService] = useState<string | null>(null);
+  const [emails, setEmails] = useState<GmailMessage[]>([]);
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [unreadCount, setUnreadCount] = useState(0);
+  const [loadingEmails, setLoadingEmails] = useState(false);
+  const [loadingEvents, setLoadingEvents] = useState(false);
 
-  useEffect(() => {
-    fetchServices();
-    fetchProfile();
-  }, []);
-
-  const fetchServices = async () => {
+  const fetchServices = useCallback(async () => {
     try {
       const data = await api.get<{ services: GoogleService[]; connected: boolean }>('/api/google/services');
       setServices(data.services || []);
       setConnected(data.connected || false);
     } catch {
       setServices([]);
-      toast.error('Could not load Google services — check API connection');
     } finally {
       setLoading(false);
     }
-  };
+  }, []);
 
-  const fetchProfile = async () => {
+  const fetchProfile = useCallback(async () => {
     try {
-      const data = await api.get<{ name?: string; email?: string; picture?: string }>('/api/google/profile');
-      setProfile(data);
+      const data = await api.get<{ name?: string | null; email?: string | null; picture?: string | null }>('/api/google/profile');
+      if (data.name || data.email) {
+        setProfile({ name: data.name || undefined, email: data.email || undefined, picture: data.picture || undefined });
+      } else {
+        setProfile(null);
+      }
     } catch {
       setProfile(null);
     }
-  };
+  }, []);
+
+  const fetchEmails = useCallback(async () => {
+    setLoadingEmails(true);
+    try {
+      const data = await api.get<{ emails: GmailMessage[]; unread_count: number }>('/api/google/gmail/messages');
+      setEmails(data.emails || []);
+      setUnreadCount(data.unread_count || 0);
+    } catch {
+      setEmails([]);
+    } finally {
+      setLoadingEmails(false);
+    }
+  }, []);
+
+  const fetchEvents = useCallback(async () => {
+    setLoadingEvents(true);
+    try {
+      const data = await api.get<{ events: CalendarEvent[]; count: number }>('/api/google/calendar/events');
+      setEvents(data.events || []);
+    } catch {
+      setEvents([]);
+    } finally {
+      setLoadingEvents(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    fetchServices();
+    fetchProfile();
+  }, [fetchServices, fetchProfile]);
+
+  useEffect(() => {
+    if (connected) {
+      fetchEmails();
+      fetchEvents();
+    }
+  }, [connected, fetchEmails, fetchEvents]);
+
+  // Listen for OAuth popup callback
+  useEffect(() => {
+    const handler = (event: MessageEvent) => {
+      if (event.data?.type === 'google-connected' && event.data.success) {
+        toast.success('Google account connected!');
+        fetchServices();
+        fetchProfile();
+      }
+    };
+    window.addEventListener('message', handler);
+    return () => window.removeEventListener('message', handler);
+  }, [fetchServices, fetchProfile]);
 
   const handleGoogleSignIn = async () => {
     try {
       const data = await api.get<{ auth_url: string }>('/api/google/auth-url');
-      window.open(data.auth_url, '_blank', 'width=500,height=600');
+      window.open(data.auth_url, '_blank', 'width=500,height=700');
     } catch {
-      toast.error('Could not get Google auth URL — check API credentials');
+      toast.error('Could not get Google auth URL');
     }
   };
 
-  const serviceDetails: Record<string, { description: string; stats: string }> = {
-    gmail: { description: 'Read, compose, and manage your emails', stats: '12 unread' },
-    calendar: { description: 'View and manage your calendar events', stats: '3 today' },
-    drive: { description: 'Access your files and documents', stats: '15 GB used' },
-    youtube: { description: 'Watch videos & get AI summaries', stats: '8 subscriptions' },
-    contacts: { description: 'View and manage your contacts', stats: '342 contacts' },
-    photos: { description: 'Browse your photo library', stats: '2,841 photos' },
-    tasks: { description: 'View and manage your tasks', stats: '5 pending' },
-    fitness: { description: 'Track your health & fitness data', stats: '8,432 steps today' },
-    maps: { description: 'Saved places and directions', stats: '12 saved' },
-    keep: { description: 'Notes and reminders', stats: '28 notes' },
-    docs: { description: 'View and edit documents', stats: '45 documents' },
-    sheets: { description: 'View and edit spreadsheets', stats: '12 sheets' },
+  const formatDate = (dateStr: string) => {
+    try {
+      const d = new Date(dateStr);
+      const now = new Date();
+      if (d.toDateString() === now.toDateString()) return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      return d.toLocaleDateString([], { month: 'short', day: 'numeric' });
+    } catch {
+      return dateStr;
+    }
+  };
+
+  const formatEventTime = (start: string, end: string) => {
+    try {
+      const s = new Date(start);
+      const e = new Date(end);
+      const opts: Intl.DateTimeFormatOptions = { hour: '2-digit', minute: '2-digit' };
+      return `${s.toLocaleTimeString([], opts)} - ${e.toLocaleTimeString([], opts)}`;
+    } catch {
+      return start;
+    }
+  };
+
+  const parseFrom = (from: string) => {
+    const match = from.match(/^(.+?)\s*<.+>$/);
+    return match ? match[1].replace(/"/g, '') : from;
+  };
+
+  const serviceStats = (svc: GoogleService) => {
+    if (!connected) return undefined;
+    if (svc.id === 'gmail') return `${unreadCount} unread`;
+    if (svc.id === 'calendar') return `${events.length} upcoming`;
+    return undefined;
   };
 
   return (
@@ -116,9 +202,8 @@ export function GoogleServicesPage() {
               </h1>
               <p className="text-zinc-400 mt-1">
                 {connected
-                  ? `Connected as ${profile?.email || 'user'} — all services active`
-                  : 'Connect your Google account to unlock all services'
-                }
+                  ? `Connected as ${profile?.email || 'user'} \u2014 all services active`
+                  : 'Connect your Google account to unlock all services'}
               </p>
             </div>
             <div className="flex items-center gap-3">
@@ -132,7 +217,7 @@ export function GoogleServicesPage() {
                 </button>
               )}
               <button
-                onClick={fetchServices}
+                onClick={() => { fetchServices(); fetchProfile(); if (connected) { fetchEmails(); fetchEvents(); } }}
                 className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-white transition-colors"
               >
                 <RefreshCw className="w-4 h-4" />
@@ -140,12 +225,15 @@ export function GoogleServicesPage() {
             </div>
           </div>
 
-          {/* Account Card */}
           {profile && (
             <div className="mt-4 flex items-center gap-4 p-4 rounded-xl bg-white/5 border border-white/5">
-              <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
-                {profile.name?.[0] || 'V'}
-              </div>
+              {profile.picture ? (
+                <img src={profile.picture} alt="" className="w-12 h-12 rounded-full" />
+              ) : (
+                <div className="w-12 h-12 rounded-full bg-gradient-to-br from-blue-500 to-purple-600 flex items-center justify-center text-white font-bold text-lg">
+                  {profile.name?.[0] || 'G'}
+                </div>
+              )}
               <div className="flex-1">
                 <p className="text-white font-medium">{profile.name}</p>
                 <p className="text-zinc-400 text-sm">{profile.email}</p>
@@ -172,7 +260,7 @@ export function GoogleServicesPage() {
             {services.map((service, idx) => {
               const Icon = iconMap[service.icon] || Mail;
               const gradient = colorMap[service.id] || 'from-gray-500 to-gray-600';
-              const details = serviceDetails[service.id];
+              const stats = serviceStats(service);
               const isActive = activeService === service.id;
 
               return (
@@ -203,19 +291,12 @@ export function GoogleServicesPage() {
                   </div>
                   <h3 className="mt-3 text-white font-semibold text-sm">{service.name}</h3>
                   <p className="mt-1 text-zinc-500 text-xs line-clamp-2">
-                    {details?.description || 'Google service'}
+                    {service.connected ? 'Connected & active' : 'Connect to enable'}
                   </p>
-                  {details?.stats && (
+                  {stats && (
                     <div className="mt-3 flex items-center justify-between">
-                      <span className="text-xs text-zinc-400">{details.stats}</span>
+                      <span className="text-xs text-zinc-400">{stats}</span>
                       <ChevronRight className="w-3.5 h-3.5 text-zinc-500 group-hover:text-white transition-colors" />
-                    </div>
-                  )}
-                  {service.status === 'demo' && (
-                    <div className="absolute top-2 right-2">
-                      <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-amber-500/20 text-amber-400 font-medium">
-                        DEMO
-                      </span>
                     </div>
                   )}
                 </motion.button>
@@ -224,35 +305,146 @@ export function GoogleServicesPage() {
           </div>
         )}
 
+        {/* Gmail Inbox */}
+        {connected && activeService === 'gmail' && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Mail className="w-5 h-5 text-red-400" />
+                Gmail Inbox
+                {unreadCount > 0 && (
+                  <span className="text-xs px-2 py-0.5 rounded-full bg-red-500/20 text-red-400 font-medium">
+                    {unreadCount} unread
+                  </span>
+                )}
+              </h2>
+              <button onClick={fetchEmails} disabled={loadingEmails} className="text-xs text-zinc-400 hover:text-white flex items-center gap-1">
+                <RefreshCw className={cn('w-3.5 h-3.5', loadingEmails && 'animate-spin')} /> Refresh
+              </button>
+            </div>
+            {loadingEmails && emails.length === 0 ? (
+              <div className="space-y-2">
+                {Array.from({ length: 5 }).map((_, i) => (
+                  <div key={i} className="h-16 rounded-xl bg-white/5 animate-pulse" />
+                ))}
+              </div>
+            ) : emails.length === 0 ? (
+              <div className="text-center py-8 text-zinc-500">
+                <Inbox className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No emails found</p>
+              </div>
+            ) : (
+              <div className="space-y-1">
+                {emails.map((email) => (
+                  <div
+                    key={email.id}
+                    className={cn(
+                      'flex items-start gap-3 p-3 rounded-xl border transition-colors cursor-pointer',
+                      email.unread
+                        ? 'bg-white/[0.05] border-white/10'
+                        : 'bg-white/[0.02] border-white/5 hover:bg-white/[0.04]'
+                    )}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <div className="flex items-center gap-2">
+                        <span className={cn('text-sm truncate', email.unread ? 'text-white font-semibold' : 'text-zinc-300')}>
+                          {parseFrom(email.from)}
+                        </span>
+                        <span className="text-xs text-zinc-500 shrink-0">{formatDate(email.date)}</span>
+                        {email.unread && <div className="w-2 h-2 rounded-full bg-blue-400 shrink-0" />}
+                      </div>
+                      <p className={cn('text-sm truncate mt-0.5', email.unread ? 'text-zinc-200' : 'text-zinc-400')}>
+                        {email.subject}
+                      </p>
+                      <p className="text-xs text-zinc-500 truncate mt-0.5">{email.snippet}</p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+
+        {/* Calendar Events */}
+        {connected && activeService === 'calendar' && (
+          <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="mt-6">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-lg font-semibold text-white flex items-center gap-2">
+                <Calendar className="w-5 h-5 text-blue-400" />
+                Upcoming Events
+                <span className="text-xs px-2 py-0.5 rounded-full bg-blue-500/20 text-blue-400 font-medium">
+                  {events.length}
+                </span>
+              </h2>
+              <button onClick={fetchEvents} disabled={loadingEvents} className="text-xs text-zinc-400 hover:text-white flex items-center gap-1">
+                <RefreshCw className={cn('w-3.5 h-3.5', loadingEvents && 'animate-spin')} /> Refresh
+              </button>
+            </div>
+            {loadingEvents && events.length === 0 ? (
+              <div className="space-y-2">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-20 rounded-xl bg-white/5 animate-pulse" />
+                ))}
+              </div>
+            ) : events.length === 0 ? (
+              <div className="text-center py-8 text-zinc-500">
+                <Calendar className="w-8 h-8 mx-auto mb-2 opacity-50" />
+                <p>No upcoming events</p>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                {events.map((event) => (
+                  <a
+                    key={event.id}
+                    href={event.html_link}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-start gap-4 p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] hover:border-white/10 transition-colors block"
+                  >
+                    <div className="w-10 h-10 rounded-lg bg-blue-500/20 flex items-center justify-center shrink-0">
+                      <Calendar className="w-5 h-5 text-blue-400" />
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white font-medium text-sm">{event.summary}</p>
+                      <p className="text-zinc-400 text-xs mt-1 flex items-center gap-1">
+                        <Clock className="w-3 h-3" />
+                        {formatEventTime(event.start, event.end)}
+                      </p>
+                      {event.location && (
+                        <p className="text-zinc-500 text-xs mt-1 truncate">{event.location}</p>
+                      )}
+                    </div>
+                    <ExternalLink className="w-3.5 h-3.5 text-zinc-500 shrink-0 mt-1" />
+                  </a>
+                ))}
+              </div>
+            )}
+          </motion.div>
+        )}
+
         {/* Quick Actions */}
         <div className="mt-8">
           <h2 className="text-lg font-semibold text-white mb-4">Quick Actions</h2>
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
             {[
-              { label: 'Check Email', icon: Mail, desc: 'View latest emails', color: 'text-red-400' },
-              { label: 'Today\'s Events', icon: Calendar, desc: 'See calendar', color: 'text-blue-400' },
-              { label: 'Summarize Video', icon: Youtube, desc: 'AI video summary', color: 'text-red-500' },
-              { label: 'Health Overview', icon: Heart, desc: 'Fitness dashboard', color: 'text-green-400' },
-            ].map((action) => (
+              { label: 'Check Email', icon: Mail, desc: 'View latest emails', color: 'text-red-400', svc: 'gmail' as const },
+              { label: "Today's Events", icon: Calendar, desc: 'See calendar', color: 'text-blue-400', svc: 'calendar' as const },
+              { label: 'Summarize Video', icon: Youtube, desc: 'AI video summary', color: 'text-red-500', svc: null },
+              { label: 'Health Overview', icon: Heart, desc: 'Fitness dashboard', color: 'text-green-400', svc: null },
+            ].map((act) => (
               <button
-                key={action.label}
+                key={act.label}
                 onClick={() => {
-                  const setPage = useAppStore.getState().setPage;
-                  if (action.label === 'Health Overview') {
-                    setPage('health');
-                  } else if (action.label === 'Summarize Video') {
-                    setPage('youtube');
-                  } else {
-                    useChatStore.getState().setQueuedMessage(action.desc);
-                    setPage('chat');
-                  }
+                  if (act.svc) { setActiveService(act.svc); }
+                  else if (act.label === 'Summarize Video') { useAppStore.getState().setPage('youtube'); }
+                  else { useAppStore.getState().setPage('health'); }
                 }}
                 className="flex items-center gap-3 p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] hover:border-white/10 transition-all text-left group"
               >
-                <action.icon className={cn('w-5 h-5', action.color)} />
+                <act.icon className={cn('w-5 h-5', act.color)} />
                 <div>
-                  <p className="text-white text-sm font-medium">{action.label}</p>
-                  <p className="text-zinc-500 text-xs">{action.desc}</p>
+                  <p className="text-white text-sm font-medium">{act.label}</p>
+                  <p className="text-zinc-500 text-xs">{act.desc}</p>
                 </div>
                 <ExternalLink className="w-3.5 h-3.5 text-zinc-500 ml-auto opacity-0 group-hover:opacity-100 transition-opacity" />
               </button>
