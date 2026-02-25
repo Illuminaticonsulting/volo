@@ -18,6 +18,8 @@ os.environ.setdefault("APP_SECRET_KEY", "test-app-secret-do-not-use-in-prod")
 os.environ["ANTHROPIC_API_KEY"] = ""
 os.environ["OPENAI_API_KEY"] = ""
 
+from sqlalchemy import text as _sa_text
+
 from main import app
 from app.auth import create_access_token
 from app.database import engine, Base
@@ -35,6 +37,11 @@ def event_loop():
 async def create_tables():
     """Create all tables and seed required data before the test session."""
     async with engine.begin() as conn:
+        # Enable pgvector on PostgreSQL; silently ignored on SQLite
+        try:
+            await conn.execute(_sa_text("CREATE EXTENSION IF NOT EXISTS vector"))
+        except Exception:
+            pass
         await conn.run_sync(Base.metadata.create_all)
     # Seed the default tenant + dev-user that many routes depend on
     from app.database import async_session as _session, Tenant, User
