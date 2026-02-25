@@ -4,12 +4,10 @@ VOLO — Database Models & Initialization
 
 import uuid
 from datetime import datetime
-from typing import Optional
 
 from sqlalchemy import (
     Column, String, Text, Boolean, Integer, Float,
-    DateTime, JSON, ForeignKey, Enum as SQLEnum, Index,
-    create_engine,
+    DateTime, JSON, ForeignKey, Index,
 )
 from sqlalchemy.ext.asyncio import create_async_engine, AsyncSession, async_sessionmaker
 from sqlalchemy.orm import DeclarativeBase, relationship

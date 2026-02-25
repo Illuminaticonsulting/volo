@@ -52,7 +52,7 @@ async def test_chat_includes_conversation_id(auth_client: AsyncClient):
         )
 
     # Parse the first data: line
-    lines = [l for l in response.text.splitlines() if l.startswith("data:")]
+    lines = [ln for ln in response.text.splitlines() if ln.startswith("data:")]
     first = json.loads(lines[0].removeprefix("data: "))
     assert "conversation_id" in first
 

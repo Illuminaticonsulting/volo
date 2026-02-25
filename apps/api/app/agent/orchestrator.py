@@ -326,9 +326,9 @@ class AgentOrchestrator:
                     }
                     try:
                         args = json.loads(tc.function.arguments)
-                        result = await self.tool_registry.execute(tc.function.name, **args)
-                    except Exception as e:
-                        result = {"error": str(e)}
+                        await self.tool_registry.execute(tc.function.name, **args)
+                    except Exception:
+                        pass  # tool error recorded in the yielded status
 
                     yield {
                         "tool_call": {
@@ -462,7 +462,7 @@ For example:
 - If you're **all of the above** — we'll do it all! 🚀"""
 
         else:
-            response = f"""I hear you! I'm Volo, your AI Life Operating System.
+            response = """I hear you! I'm Volo, your AI Life Operating System.
 
 Right now I'm running in **setup mode** — I need an AI model API key to unlock my full capabilities.
 

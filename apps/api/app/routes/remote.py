@@ -8,7 +8,6 @@ import os
 import json
 import time
 import asyncio
-from typing import Optional
 
 from fastapi import APIRouter, WebSocket, WebSocketDisconnect, HTTPException, Query, Request
 from fastapi.responses import StreamingResponse, PlainTextResponse
@@ -263,13 +262,13 @@ async def start_session(body: StartSessionRequest):
     agent = remote_manager.get_agent(body.user_id)
     if agent:
         try:
-            result = await agent.send_command("open_repo", {
+            await agent.send_command("open_repo", {
                 "repo": body.repo_full_name,
                 "clone_url": body.repo_clone_url,
                 "session_id": session_id,
             }, session_id=session_id, timeout=30.0)
         except Exception:
-            result = {"status": "command_sent"}
+            pass  # clone command sent; no result needed
 
     return {"session_id": session_id, "status": "active", "repo": body.repo_full_name}
 

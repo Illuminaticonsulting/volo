@@ -172,7 +172,7 @@ class GitHubService:
                     "updated_at": pr["updated_at"],
                     "html_url": pr["html_url"],
                     "draft": pr.get("draft", False),
-                    "labels": [l["name"] for l in pr.get("labels", [])],
+                    "labels": [lbl["name"] for lbl in pr.get("labels", [])],
                 }
                 for pr in prs
             ],

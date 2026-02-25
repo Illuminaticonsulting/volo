@@ -1,0 +1,5 @@
+[lint.per-file-ignores]
+# load_dotenv() must run before importing app modules that read env vars
+"main.py" = ["E402"]
+# SQLAlchemy ORM requires `Column == False` syntax; `not Column` would be a Python bool
+"app/services/notifications.py" = ["E712"]

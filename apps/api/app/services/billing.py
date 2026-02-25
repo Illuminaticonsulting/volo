@@ -84,7 +84,7 @@ class BillingService:
         if err:
             return err
 
-        sub = self.stripe.Subscription.modify(
+        self.stripe.Subscription.modify(
             subscription_id,
             cancel_at_period_end=True,
         )

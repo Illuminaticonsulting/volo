@@ -3,7 +3,6 @@ VOLO — Conversations Routes
 Persistent conversation management backed by PostgreSQL.
 """
 
-import uuid
 from datetime import datetime
 from typing import Optional
 
