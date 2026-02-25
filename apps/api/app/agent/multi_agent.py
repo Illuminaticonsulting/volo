@@ -5,7 +5,6 @@ delegated to by the main orchestrator.
 """
 
 import logging
-from typing import Any, Optional
 
 logger = logging.getLogger("volo.multi_agent")
 

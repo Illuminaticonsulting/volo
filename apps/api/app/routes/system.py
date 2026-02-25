@@ -6,7 +6,6 @@ Provides system status and in-app configuration management.
 import os
 from fastapi import APIRouter
 from pydantic import BaseModel
-from typing import Optional
 from app.config import settings
 from app.agent.memory import MemoryManager
 

@@ -17,7 +17,6 @@ from datetime import datetime
 from fastapi import APIRouter, HTTPException, Depends, Request
 from fastapi.responses import RedirectResponse
 from pydantic import BaseModel
-from typing import Optional
 import httpx
 from sqlalchemy import select
 
@@ -263,7 +262,7 @@ async def google_oauth_callback(code: str = "", state: str = ""):
         return RedirectResponse(url=build_frontend_redirect(user_data), status_code=302)
     except HTTPException:
         return _error_redirect("Google login failed")
-    except Exception as e:
+    except Exception:
         logger.exception("Google OAuth callback error")
         return _error_redirect("Google login failed")
 
@@ -623,7 +622,6 @@ async def slack_oauth_callback(code: str = "", state: str = ""):
             await session.commit()
 
         # Update the in-memory service
-        from app.services.messaging import MessagingService
         # Bot token is now stored; it'll be picked up on next request
 
         logger.info(f"Slack connected: {team_name} ({team_id})")

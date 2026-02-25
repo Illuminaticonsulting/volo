@@ -3,7 +3,6 @@ VOLO — Email Service
 Gmail and Outlook integration for inbox management.
 """
 
-import os
 import logging
 from typing import Optional
 import httpx

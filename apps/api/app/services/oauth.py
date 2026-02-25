@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 from urllib.parse import urlencode, quote
 
-from sqlalchemy import select, or_
+from sqlalchemy import select
 
 from app.auth import create_access_token, create_refresh_token
 from app.database import async_session, User, Integration

@@ -6,7 +6,6 @@ Remote machine access via SSH or Volo daemon.
 import os
 import logging
 import asyncio
-from typing import Optional
 
 logger = logging.getLogger("volo.machine")
 

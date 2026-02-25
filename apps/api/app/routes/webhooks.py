@@ -5,8 +5,6 @@ Receive and dispatch webhooks from external services.
 
 import uuid
 import os
-import hmac
-import hashlib
 import json
 import logging
 from datetime import datetime
@@ -160,7 +158,6 @@ async def whatsapp_webhook_receive(request: Request):
     Receive WhatsApp Cloud API webhook events (inbound messages).
     Meta sends message events here when users message your WhatsApp number.
     """
-    import os as _os
     body = await request.json()
 
     entries = body.get("entry", [])

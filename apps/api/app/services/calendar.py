@@ -3,7 +3,6 @@ VOLO — Calendar Service
 Google Calendar integration for scheduling and event management.
 """
 
-import os
 import logging
 from typing import Optional
 from datetime import datetime, timedelta

@@ -4,10 +4,7 @@ Manages token budgets, sliding context windows, memory injection,
 and ensures the LLM always has the most relevant context.
 """
 
-import json
 import logging
-from typing import Optional
-from datetime import datetime
 
 logger = logging.getLogger("volo.context")
 

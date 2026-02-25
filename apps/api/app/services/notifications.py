@@ -4,8 +4,6 @@ Persistent notification storage in PostgreSQL.
 """
 
 import logging
-from datetime import datetime
-from typing import Optional
 from sqlalchemy import select, func
 
 from app.database import async_session, Notification

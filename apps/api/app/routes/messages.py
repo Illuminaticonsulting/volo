@@ -5,7 +5,7 @@ Auto-2FA: When a platform needs a TOTP code, Volo pulls it from the vault.
 """
 
 import logging
-from fastapi import APIRouter, Query, Depends
+from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from typing import Optional
 import httpx
@@ -65,7 +65,7 @@ async def _fetch_twitter_dms(user_id: str) -> list[dict]:
                     "is_from_me": False,
                 })
             return messages
-    except Exception as e:
+    except Exception:
         logger.exception("Error fetching Twitter DMs")
         return []
 

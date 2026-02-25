@@ -5,7 +5,7 @@ Handles the conversational onboarding flow and user preferences.
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import List
 from sqlalchemy import select
 
 from app.auth import get_current_user, CurrentUser

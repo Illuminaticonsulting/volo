@@ -9,7 +9,7 @@ import base64
 import secrets
 import logging
 
-from fastapi import APIRouter, HTTPException, Depends, Query
+from fastapi import APIRouter, HTTPException, Depends
 from fastapi.responses import RedirectResponse
 
 from app.auth import get_current_user, CurrentUser

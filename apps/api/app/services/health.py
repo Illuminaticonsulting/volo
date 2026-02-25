@@ -3,10 +3,7 @@ VOLO — Health & Fitness Service
 Integrates with Apple Health (via export), Google Fit API, and device sensors.
 """
 
-import os
-import json
 import httpx
-from typing import Optional
 from datetime import datetime, timezone, timedelta
 
 

@@ -33,7 +33,7 @@ def _get_fernet() -> Fernet:
         # Auto-generate a key and warn — in production, set VOLO_VAULT_KEY
         key = Fernet.generate_key().decode()
         os.environ["VOLO_VAULT_KEY"] = key
-        print(f"⚠️  No VOLO_VAULT_KEY set — generated ephemeral key. Set it in .env for persistence!")
+        print("⚠️  No VOLO_VAULT_KEY set — generated ephemeral key. Set it in .env for persistence!")
     # Ensure it's bytes
     if isinstance(key, str):
         key = key.encode()

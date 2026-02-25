@@ -4,10 +4,9 @@ RESTful API for programmatic access to Volo features.
 Authenticated via API keys.
 """
 
-import json
 import uuid
 
-from fastapi import APIRouter, Request, HTTPException
+from fastapi import APIRouter, Request
 from pydantic import BaseModel
 from typing import Optional
 

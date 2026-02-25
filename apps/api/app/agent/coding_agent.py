@@ -13,8 +13,7 @@ Key difference from the generic orchestrator:
 
 import os
 import json
-import asyncio
-from typing import AsyncGenerator, Optional
+from typing import AsyncGenerator
 from datetime import datetime
 
 from app.agent.context_manager import ContextWindow

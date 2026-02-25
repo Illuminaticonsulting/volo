@@ -4,7 +4,6 @@ Defines all tools available to the agent with LIVE execution.
 Each tool is a capability the agent can invoke during conversation.
 """
 
-import json
 from typing import Any, Callable, Optional
 from app.services.github import GitHubService
 from app.services.trading import TradingService

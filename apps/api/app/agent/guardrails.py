@@ -5,7 +5,6 @@ content filtering, cost limits, and action constraints.
 """
 
 import logging
-from typing import Optional
 from datetime import datetime
 
 logger = logging.getLogger("volo.guardrails")

@@ -8,7 +8,6 @@ with commands scoped to a session_id so the agent knows which cwd to use.
 
 import uuid
 import asyncio
-import json
 import time
 from typing import Optional
 from datetime import datetime
