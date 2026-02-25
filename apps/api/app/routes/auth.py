@@ -553,6 +553,152 @@ async def apple_oauth_start():
     raise HTTPException(501, "Apple Sign-In not yet configured. Requires Apple Developer Program enrollment.")
 
 
+# ===== Slack OAuth 2.0 (Bot Installation) =====
+
+@router.get("/slack")
+async def slack_oauth_start():
+    """Redirect to Slack OAuth consent screen to install bot."""
+    if not settings.slack_client_id:
+        raise HTTPException(501, "Slack OAuth not configured. Set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET.")
+
+    state = await _store_state("slack")
+    redirect_uri = settings.slack_redirect_uri or f"{settings.frontend_url}/api/auth/slack/callback"
+    scopes = "channels:history,channels:read,chat:write,groups:read,groups:history,im:history,im:read,mpim:read,users:read,search:read"
+    auth_url = (
+        f"https://slack.com/oauth/v2/authorize?"
+        f"client_id={settings.slack_client_id}"
+        f"&redirect_uri={redirect_uri}"
+        f"&scope={scopes}"
+        f"&state={state}"
+    )
+    return {"url": auth_url}
+
+
+@router.get("/slack/callback")
+async def slack_oauth_callback(code: str = "", state: str = ""):
+    """Handle Slack OAuth callback — store the bot token."""
+    try:
+        if not code or not state:
+            return _error_redirect("Missing code or state")
+
+        await _pop_state(state, "slack")
+        redirect_uri = settings.slack_redirect_uri or f"{settings.frontend_url}/api/auth/slack/callback"
+
+        async with httpx.AsyncClient() as client:
+            token_resp = await client.post(
+                "https://slack.com/api/oauth.v2.access",
+                data={
+                    "client_id": settings.slack_client_id,
+                    "client_secret": settings.slack_client_secret,
+                    "code": code,
+                    "redirect_uri": redirect_uri,
+                },
+            )
+            data = token_resp.json()
+            if not data.get("ok"):
+                logger.error(f"Slack token exchange failed: {data.get('error')}")
+                return _error_redirect(f"Slack auth failed: {data.get('error', 'unknown')}")
+
+        bot_token = data.get("access_token", "")
+        team_name = data.get("team", {}).get("name", "Workspace")
+        team_id = data.get("team", {}).get("id", "")
+
+        # Store as integration
+        async with async_session() as session:
+            result = await session.execute(
+                select(Integration).where(
+                    Integration.user_id == "dev-user",
+                    Integration.type == "slack",
+                )
+            )
+            existing = result.scalar_one_or_none()
+            if existing:
+                existing.config = {"bot_token": bot_token, "team_id": team_id, "team_name": team_name}
+                existing.status = "connected"
+                existing.last_sync_at = datetime.utcnow()
+            else:
+                session.add(Integration(
+                    user_id="dev-user",
+                    type="slack",
+                    category="communication",
+                    name=f"Slack ({team_name})",
+                    status="connected",
+                    config={"bot_token": bot_token, "team_id": team_id, "team_name": team_name},
+                ))
+            await session.commit()
+
+        # Update the in-memory service
+        from app.services.messaging import MessagingService
+        # Bot token is now stored; it'll be picked up on next request
+
+        logger.info(f"Slack connected: {team_name} ({team_id})")
+        return RedirectResponse(
+            url=f"{settings.frontend_url}?page=settings&integration=slack&status=connected",
+            status_code=302,
+        )
+    except HTTPException:
+        return _error_redirect("Slack login failed")
+    except Exception:
+        logger.exception("Slack OAuth callback error")
+        return _error_redirect("Slack login failed")
+
+
+# ===== Messaging Platform Token Connection =====
+
+@router.post("/connect-messaging")
+async def connect_messaging_platform(request: Request, current_user: CurrentUser = Depends(get_current_user)):
+    """
+    Connect a messaging platform by storing its API token.
+    Body: { "platform": "telegram|discord|whatsapp|signal", "token": "...", "extra": {} }
+    """
+    body = await request.json()
+    platform = body.get("platform", "")
+    token = body.get("token", "")
+    extra = body.get("extra", {})
+
+    if not platform or not token:
+        raise HTTPException(400, "Missing platform or token")
+
+    valid_platforms = {
+        "telegram": {"name": "Telegram", "config_key": "bot_token"},
+        "discord": {"name": "Discord Bot", "config_key": "bot_token"},
+        "whatsapp": {"name": "WhatsApp", "config_key": "api_token"},
+        "whatsapp_business": {"name": "WhatsApp Business", "config_key": "api_token"},
+        "signal": {"name": "Signal", "config_key": "api_url"},
+    }
+
+    if platform not in valid_platforms:
+        raise HTTPException(400, f"Unknown platform: {platform}")
+
+    info = valid_platforms[platform]
+    config = {info["config_key"]: token, **extra}
+
+    async with async_session() as session:
+        result = await session.execute(
+            select(Integration).where(
+                Integration.user_id == current_user.user_id,
+                Integration.type == platform,
+            )
+        )
+        existing = result.scalar_one_or_none()
+        if existing:
+            existing.config = config
+            existing.status = "connected"
+            existing.last_sync_at = datetime.utcnow()
+        else:
+            session.add(Integration(
+                user_id=current_user.user_id,
+                type=platform,
+                category="messaging",
+                name=info["name"],
+                status="connected",
+                config=config,
+            ))
+        await session.commit()
+
+    return {"success": True, "platform": platform, "status": "connected"}
+
+
 # ===== Provider availability check =====
 
 @router.get("/providers")
@@ -565,6 +711,7 @@ async def list_providers():
             "github": bool(settings.github_client_id),
             "twitter": bool(settings.twitter_client_id),
             "discord": bool(settings.discord_client_id),
+            "slack": bool(settings.slack_client_id),
             "apple": False,
             "facebook": False,
             "linkedin": False,

@@ -319,6 +319,15 @@ function IntegrationsSection() {
       keyName: 'GOOGLE_OAUTH',
     },
     {
+      name: 'Google Calendar',
+      icon: Globe,
+      category: 'Communication',
+      description: 'Schedule events, detect conflicts, meeting briefs',
+      connected: false,
+      color: 'blue',
+      keyName: 'GOOGLE_OAUTH',
+    },
+    {
       name: 'Alpaca Trading',
       icon: TrendingUp,
       category: 'Finance',
@@ -346,6 +355,7 @@ function IntegrationsSection() {
             if (int.name === 'GitHub' && data.github) return { ...int, connected: true };
             if (int.name === 'Alpaca Trading' && data.trading) return { ...int, connected: true };
             if (int.name === 'Gmail' && data.email) return { ...int, connected: true };
+            if (int.name === 'Google Calendar' && data.email) return { ...int, connected: true };
             return int;
           })
         );
@@ -354,7 +364,7 @@ function IntegrationsSection() {
   }, []);
 
   const handleConnect = (int: typeof integrations[0]) => {
-    if (int.name === 'Gmail') {
+    if (int.name === 'Gmail' || int.name === 'Google Calendar') {
       api.get<{ auth_url?: string }>('/api/google/auth-url')
         .then((data) => {
           if (data.auth_url) window.open(data.auth_url, '_blank', 'width=500,height=600');
@@ -375,21 +385,21 @@ function IntegrationsSection() {
           {integrations.map((int) => (
             <div
               key={int.name}
-              className="flex items-center justify-between p-5 rounded-2xl bg-surface-dark-2 border border-white/5"
+              className="flex items-center justify-between p-4 sm:p-5 rounded-2xl bg-surface-dark-2 border border-white/5"
             >
-              <div className="flex items-center gap-4">
+              <div className="flex items-center gap-3 sm:gap-4">
                 <div className={cn('w-10 h-10 rounded-xl flex items-center justify-center bg-white/5')}>
                   <int.icon className="w-5 h-5 text-zinc-400" />
                 </div>
                 <div>
                   <p className="text-sm font-medium text-zinc-200">{int.name}</p>
-                  <p className="text-xs text-zinc-500">{int.description}</p>
+                  <p className="text-xs text-zinc-500 hidden sm:block">{int.description}</p>
                 </div>
               </div>
-              <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2 sm:gap-3">
                 <span
                   className={cn(
-                    'text-[10px] px-2.5 py-1 rounded-full font-medium',
+                    'text-[10px] px-2 sm:px-2.5 py-1 rounded-full font-medium',
                     int.connected
                       ? 'bg-emerald-500/20 text-emerald-400'
                       : 'bg-zinc-800 text-zinc-500'
@@ -519,54 +529,155 @@ function SocialIntegrationsSection() {
 }
 
 function MessagingIntegrationsSection() {
-  const [messagingPlatforms, setMessagingPlatforms] = useState<{ id: string; name: string; connected: boolean; icon: string; color: string }[]>([]);
+  const [messagingPlatforms, setMessagingPlatforms] = useState<{ id: string; name: string; connected: boolean; icon: string; color: string; has_2fa?: boolean }[]>([]);
   const [loaded, setLoaded] = useState(false);
+  const [connectModal, setConnectModal] = useState<{ platform: string; name: string } | null>(null);
+  const [tokenInput, setTokenInput] = useState('');
+  const [extraInput, setExtraInput] = useState('');
+  const [connecting, setConnecting] = useState(false);
 
-  useEffect(() => {
+  const fetchPlatforms = () => {
     api.get<{ platforms: any[] }>('/api/messages/platforms')
       .then((data) => setMessagingPlatforms(data.platforms || []))
       .catch(() => {})
       .finally(() => setLoaded(true));
-  }, []);
+  };
+
+  useEffect(() => { fetchPlatforms(); }, []);
 
   const platformEmojis: Record<string, string> = {
     telegram: '✈️', whatsapp: '💬', whatsapp_business: '💼', imessage: '🍎', signal: '🔒', discord: '🎮', slack: '💼',
+  };
+
+  const platformHelp: Record<string, { label: string; placeholder: string; helpText: string; helpUrl: string; extraField?: { label: string; placeholder: string } }> = {
+    telegram: {
+      label: 'Bot Token',
+      placeholder: '123456:ABC-DEF1234ghIkl-zyx57W2v1u123ew11',
+      helpText: 'Create a bot via @BotFather on Telegram to get your token.',
+      helpUrl: 'https://core.telegram.org/bots#botfather',
+    },
+    whatsapp: {
+      label: 'Access Token',
+      placeholder: 'EAAxxxxxxx...',
+      helpText: 'Get your WhatsApp Cloud API token from Meta Business Suite.',
+      helpUrl: 'https://developers.facebook.com/docs/whatsapp/cloud-api/get-started',
+      extraField: { label: 'Phone Number ID', placeholder: '1234567890' },
+    },
+    whatsapp_business: {
+      label: 'Business API Token',
+      placeholder: 'EAAxxxxxxx...',
+      helpText: 'Get your WhatsApp Business API token from Meta.',
+      helpUrl: 'https://business.whatsapp.com/developers/developer-hub',
+      extraField: { label: 'Phone Number ID', placeholder: '1234567890' },
+    },
+    discord: {
+      label: 'Bot Token',
+      placeholder: 'NzkyNzE1NDU0MTk2...',
+      helpText: 'Create a bot in the Discord Developer Portal.',
+      helpUrl: 'https://discord.com/developers/applications',
+    },
+    signal: {
+      label: 'Signal CLI REST API URL',
+      placeholder: 'http://localhost:8080',
+      helpText: 'Run signal-cli-rest-api container and provide its URL.',
+      helpUrl: 'https://github.com/bbernhard/signal-cli-rest-api',
+    },
+  };
+
+  const handleSlackConnect = async () => {
+    try {
+      const data = await api.get<{ url: string }>('/api/auth/slack');
+      if (data.url) window.location.href = data.url;
+    } catch {
+      toast.error('Slack OAuth not configured — set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET');
+    }
+  };
+
+  const handleTokenConnect = async () => {
+    if (!connectModal || !tokenInput.trim()) return;
+    setConnecting(true);
+    try {
+      const extra: Record<string, string> = {};
+      if (extraInput.trim()) {
+        if (connectModal.platform === 'whatsapp' || connectModal.platform === 'whatsapp_business') {
+          extra.phone_id = extraInput.trim();
+        }
+      }
+      await api.post('/api/auth/connect-messaging', {
+        platform: connectModal.platform,
+        token: tokenInput.trim(),
+        extra,
+      });
+      toast.success(`${connectModal.name} connected!`);
+      setConnectModal(null);
+      setTokenInput('');
+      setExtraInput('');
+      fetchPlatforms();
+    } catch {
+      toast.error('Failed to connect — check your token');
+    } finally {
+      setConnecting(false);
+    }
   };
 
   return (
     <div>
       <h3 className="text-xs font-semibold text-zinc-500 uppercase tracking-wider mb-3">Messaging</h3>
       <div className="space-y-3">
-        {messagingPlatforms.map((p) => (
-          <div
-            key={p.id}
-            className="flex items-center justify-between p-4 rounded-2xl bg-surface-dark-2 border border-white/5"
-          >
-            <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 text-lg">
-                {platformEmojis[p.id] || '💬'}
+        {messagingPlatforms.map((p) => {
+          const isSlack = p.id === 'slack';
+          const isIMessage = p.id === 'imessage';
+          const canConnect = !isIMessage; // iMessage auto-detects
+
+          return (
+            <div
+              key={p.id}
+              className="flex items-center justify-between p-4 rounded-2xl bg-surface-dark-2 border border-white/5"
+            >
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 text-lg">
+                  {platformEmojis[p.id] || '💬'}
+                </div>
+                <div>
+                  <p className="text-sm font-medium text-zinc-200">{p.name}</p>
+                  <p className="text-xs text-zinc-500">
+                    {p.connected ? 'Connected & receiving messages' : isIMessage ? 'Auto-detected on macOS' : isSlack ? 'Connect via OAuth' : 'Requires API token'}
+                  </p>
+                </div>
               </div>
-              <div>
-                <p className="text-sm font-medium text-zinc-200">{p.name}</p>
-                <p className="text-xs text-zinc-500">
-                  {p.connected ? 'Token configured' : 'Add API token in environment'}
-                </p>
+              <div className="flex items-center gap-2">
+                <span className={cn(
+                  'text-[10px] px-2.5 py-1 rounded-full font-medium',
+                  p.connected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-500'
+                )}>
+                  {p.connected ? 'Connected' : 'Not Connected'}
+                </span>
+                {!p.connected && canConnect && (
+                  <button
+                    onClick={() => {
+                      if (isSlack) {
+                        handleSlackConnect();
+                      } else {
+                        setConnectModal({ platform: p.id, name: p.name });
+                        setTokenInput('');
+                        setExtraInput('');
+                      }
+                    }}
+                    className="px-3 py-1.5 rounded-lg bg-brand-600 hover:bg-brand-500 text-white text-xs font-medium transition-colors"
+                  >
+                    Connect
+                  </button>
+                )}
               </div>
             </div>
-            <span className={cn(
-              'text-[10px] px-2.5 py-1 rounded-full font-medium',
-              p.connected ? 'bg-emerald-500/20 text-emerald-400' : 'bg-zinc-800 text-zinc-500'
-            )}>
-              {p.connected ? 'Connected' : 'Not Connected'}
-            </span>
-          </div>
-        ))}
+          );
+        })}
         {messagingPlatforms.length === 0 && loaded && (
-          <p className="text-sm text-zinc-500 text-center py-4">No messaging platforms configured</p>
+          <p className="text-sm text-zinc-500 text-center py-4">No messaging platforms available</p>
         )}
         {!loaded && (
           <div className="space-y-3">
-            {Array.from({ length: 3 }).map((_, i) => (
+            {Array.from({ length: 4 }).map((_, i) => (
               <div key={i} className="flex items-center justify-between p-4 rounded-2xl bg-surface-dark-2 border border-white/5 animate-pulse">
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-xl bg-white/5" />
@@ -578,6 +689,99 @@ function MessagingIntegrationsSection() {
           </div>
         )}
       </div>
+
+      {/* Webhook Info */}
+      <div className="mt-4 rounded-xl bg-brand-600/5 border border-brand-500/10 p-4">
+        <div className="flex gap-3">
+          <Shield className="w-4 h-4 text-brand-400 flex-shrink-0 mt-0.5" />
+          <div className="text-xs text-zinc-400 leading-relaxed">
+            <p className="font-medium text-zinc-300 mb-1">Webhook URLs</p>
+            <p className="mb-2">Configure these webhook URLs in your platform settings to receive inbound messages:</p>
+            <div className="space-y-1 font-mono text-[11px] text-zinc-500">
+              <p><span className="text-zinc-300">WhatsApp:</span> {API_URL}/api/webhooks/whatsapp</p>
+              <p><span className="text-zinc-300">Telegram:</span> {API_URL}/api/webhooks/telegram</p>
+              <p><span className="text-zinc-300">Slack:</span> {API_URL}/api/webhooks/slack</p>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Token Connect Modal */}
+      {connectModal && platformHelp[connectModal.platform] && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setConnectModal(null)}>
+          <div
+            className="w-full max-w-md rounded-2xl bg-surface-dark-1 border border-white/10 p-6 shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center gap-3 mb-5">
+              <div className="w-10 h-10 rounded-xl flex items-center justify-center bg-white/5 text-lg">
+                {platformEmojis[connectModal.platform] || '💬'}
+              </div>
+              <div>
+                <h3 className="text-sm font-semibold text-white">Connect {connectModal.name}</h3>
+                <p className="text-xs text-zinc-500">{platformHelp[connectModal.platform].helpText}</p>
+              </div>
+            </div>
+
+            <div className="space-y-4">
+              <div>
+                <label className="text-xs font-medium text-zinc-400 mb-1.5 block">
+                  {platformHelp[connectModal.platform].label}
+                </label>
+                <input
+                  type="password"
+                  value={tokenInput}
+                  onChange={(e) => setTokenInput(e.target.value)}
+                  placeholder={platformHelp[connectModal.platform].placeholder}
+                  className="w-full px-3 py-2.5 rounded-xl bg-surface-dark-0 border border-white/10 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-brand-500/50 font-mono"
+                  autoFocus
+                />
+              </div>
+
+              {platformHelp[connectModal.platform].extraField && (
+                <div>
+                  <label className="text-xs font-medium text-zinc-400 mb-1.5 block">
+                    {platformHelp[connectModal.platform].extraField!.label}
+                  </label>
+                  <input
+                    type="text"
+                    value={extraInput}
+                    onChange={(e) => setExtraInput(e.target.value)}
+                    placeholder={platformHelp[connectModal.platform].extraField!.placeholder}
+                    className="w-full px-3 py-2.5 rounded-xl bg-surface-dark-0 border border-white/10 text-sm text-zinc-200 placeholder-zinc-600 outline-none focus:border-brand-500/50 font-mono"
+                  />
+                </div>
+              )}
+
+              <a
+                href={platformHelp[connectModal.platform].helpUrl}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-xs text-brand-400 hover:text-brand-300 flex items-center gap-1"
+              >
+                How to get your token <ExternalLink className="w-3 h-3" />
+              </a>
+            </div>
+
+            <div className="flex gap-2 mt-6">
+              <button
+                onClick={() => setConnectModal(null)}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-white/5 hover:bg-white/10 text-zinc-400 text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleTokenConnect}
+                disabled={!tokenInput.trim() || connecting}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-brand-600 hover:bg-brand-500 disabled:bg-zinc-700 disabled:text-zinc-500 text-white text-sm font-medium transition-colors flex items-center justify-center gap-2"
+              >
+                {connecting ? <RefreshCw className="w-3.5 h-3.5 animate-spin" /> : null}
+                {connecting ? 'Connecting...' : 'Connect'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

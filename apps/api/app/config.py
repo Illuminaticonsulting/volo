@@ -63,6 +63,10 @@ class Settings(BaseSettings):
     discord_bot_token: str = ""
     slack_bot_token: str = ""
     slack_app_token: str = ""
+    slack_client_id: str = ""
+    slack_client_secret: str = ""
+    slack_signing_secret: str = ""
+    slack_redirect_uri: str = ""
 
     # Authenticator Vault
     volo_vault_key: str = ""
