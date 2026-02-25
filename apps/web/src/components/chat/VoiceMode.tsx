@@ -399,10 +399,10 @@ export function VoiceMode({ isOpen, onClose }: VoiceModeProps) {
         </div>
         <button
           onClick={handleClose}
-          className="p-2 rounded-full hover:bg-white/5 transition-colors"
+          className="p-3 rounded-full bg-white/5 hover:bg-white/10 transition-colors border border-white/10"
           aria-label="Close voice mode"
         >
-          <X className="w-5 h-5 text-zinc-400" />
+          <X className="w-5 h-5 text-zinc-300" />
         </button>
       </div>
 
@@ -493,42 +493,48 @@ export function VoiceMode({ isOpen, onClose }: VoiceModeProps) {
       {/* Bottom controls */}
       <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center gap-6 pb-12 safe-area-bottom">
         {/* Mute toggle */}
-        <button
-          onClick={() => setIsMuted(!isMuted)}
-          className={cn(
-            'w-14 h-14 rounded-full flex items-center justify-center transition-all',
-            isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-zinc-400 hover:bg-white/10'
-          )}
-          aria-label={isMuted ? 'Unmute' : 'Mute'}
+        <div className="flex flex-col items-center gap-1">
+          <button
+            onClick={() => setIsMuted(!isMuted)}
+            className={cn(
+              'w-14 h-14 rounded-full flex items-center justify-center transition-all',
+              isMuted ? 'bg-red-500/20 text-red-400' : 'bg-white/5 text-zinc-400 hover:bg-white/10'
+            )}
+            aria-label={isMuted ? 'Unmute' : 'Mute'}
         >
           {isMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
         </button>
+          <span className="text-[10px] text-zinc-500">{isMuted ? 'Unmute' : 'Mute'}</span>
+        </div>
 
         {/* End call */}
         <button
           onClick={handleClose}
-          className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 flex items-center justify-center transition-all shadow-lg shadow-red-500/30 active:scale-95"
+          className="w-16 h-16 rounded-full bg-red-500 hover:bg-red-600 flex flex-col items-center justify-center transition-all shadow-lg shadow-red-500/30 active:scale-95"
           aria-label="End voice chat"
         >
           <Phone className="w-7 h-7 text-white rotate-[135deg]" />
         </button>
 
         {/* TTS toggle */}
-        <button
-          onClick={() => {
-            setIsTTSEnabled(!isTTSEnabled);
-            if (isTTSEnabled && typeof speechSynthesis !== 'undefined') {
-              speechSynthesis.cancel();
-            }
-          }}
-          className={cn(
-            'w-14 h-14 rounded-full flex items-center justify-center transition-all',
-            !isTTSEnabled ? 'bg-zinc-700 text-zinc-500' : 'bg-white/5 text-zinc-400 hover:bg-white/10'
-          )}
-          aria-label={isTTSEnabled ? 'Disable voice response' : 'Enable voice response'}
-        >
-          {isTTSEnabled ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
-        </button>
+        <div className="flex flex-col items-center gap-1">
+          <button
+            onClick={() => {
+              setIsTTSEnabled(!isTTSEnabled);
+              if (isTTSEnabled && typeof speechSynthesis !== 'undefined') {
+                speechSynthesis.cancel();
+              }
+            }}
+            className={cn(
+              'w-14 h-14 rounded-full flex flex-col items-center justify-center transition-all',
+              !isTTSEnabled ? 'bg-zinc-700 text-zinc-500' : 'bg-white/5 text-zinc-400 hover:bg-white/10'
+            )}
+            aria-label={isTTSEnabled ? 'Disable voice response' : 'Enable voice response'}
+          >
+            {isTTSEnabled ? <Volume2 className="w-6 h-6" /> : <VolumeX className="w-6 h-6" />}
+          </button>
+          <span className="text-[10px] text-zinc-500">{isTTSEnabled ? 'Speaker' : 'Muted'}</span>
+        </div>
       </div>
     </div>
   );

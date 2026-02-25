@@ -315,7 +315,7 @@ export function ChatMessage({ message }: ChatMessageProps) {
         {!isUser && message.status !== 'streaming' && message.content && (
           <div className={cn(
             'flex items-center gap-0.5 mt-1 transition-opacity',
-            showActions ? 'opacity-100' : 'opacity-0 group-hover/msg:opacity-100'
+            showActions ? 'opacity-100' : 'opacity-40 group-hover/msg:opacity-100'
           )}>
             <button
               onClick={(e) => { e.stopPropagation(); handleCopy(); }}

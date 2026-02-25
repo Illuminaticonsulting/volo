@@ -298,31 +298,34 @@ export function ChatArea() {
 
             {/* Right side buttons */}
             <div className="flex items-center gap-0.5 p-1.5 sm:p-2 flex-shrink-0">
-              {/* Voice Mode */}
-              <button
-                onClick={() => setVoiceModeOpen(true)}
-                className="p-2.5 sm:p-2 rounded-full text-zinc-500 hover:text-brand-400 active:text-brand-300 transition-all tap-none active:scale-95 flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 items-center justify-center"
-                title="Voice chat"
-                aria-label="Open voice chat"
-              >
-                <AudioLines className="w-5 h-5 sm:w-4 sm:h-4" />
-              </button>
-
-              {/* Voice / Send toggle */}
+              {/* Voice / Send / Dictate */}
               {!input.trim() ? (
-                <button
-                  onClick={toggleRecording}
-                  className={cn(
-                    'p-2.5 sm:p-2 rounded-full transition-all tap-none active:scale-95 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center',
-                    isRecording
-                      ? 'bg-red-500/20 text-red-400 animate-pulse-soft'
-                      : 'text-zinc-500 hover:text-zinc-300 active:text-zinc-200'
-                  )}
-                  title={isRecording ? 'Stop recording' : 'Voice input'}
-                  aria-label={isRecording ? 'Stop recording' : 'Start voice input'}
-                >
-                  <Mic className="w-5 h-5 sm:w-4 sm:h-4" />
-                </button>
+                <>
+                  {/* Dictate (speech-to-text) */}
+                  <button
+                    onClick={toggleRecording}
+                    className={cn(
+                      'p-2.5 sm:p-2 rounded-full transition-all tap-none active:scale-95 min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 flex items-center justify-center',
+                      isRecording
+                        ? 'bg-red-500/20 text-red-400 animate-pulse-soft'
+                        : 'text-zinc-500 hover:text-zinc-300 active:text-zinc-200'
+                    )}
+                    title={isRecording ? 'Stop recording' : 'Dictate'}
+                    aria-label={isRecording ? 'Stop recording' : 'Dictate — type with your voice'}
+                  >
+                    <Mic className="w-5 h-5 sm:w-4 sm:h-4" />
+                  </button>
+
+                  {/* Voice Chat (full-screen voice mode) */}
+                  <button
+                    onClick={() => setVoiceModeOpen(true)}
+                    className="p-2.5 sm:p-2 rounded-full bg-brand-600/10 text-brand-400 hover:bg-brand-600/20 active:bg-brand-600/30 transition-all tap-none active:scale-95 flex min-h-[44px] min-w-[44px] sm:min-h-0 sm:min-w-0 items-center justify-center"
+                    title="Voice Chat"
+                    aria-label="Open voice chat — talk hands-free"
+                  >
+                    <AudioLines className="w-5 h-5 sm:w-4 sm:h-4" />
+                  </button>
+                </>
               ) : (
                 /* Send — show when input has text */
                 <button

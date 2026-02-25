@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
   Sparkles,
@@ -28,8 +28,16 @@ import {
   FileCode,
   GitBranch,
   Layers,
+  Link,
+  Github,
+  Twitter,
+  Loader2,
+  CheckCircle,
+  ExternalLink,
 } from 'lucide-react';
 import { useAuthStore } from '@/stores/authStore';
+import { api } from '@/lib/api';
+import { toast } from 'sonner';
 
 interface OnboardingWizardProps {
   onComplete: () => void;
@@ -40,7 +48,53 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
   const [name, setName] = useState('');
   const [role, setRole] = useState('');
   const [selectedInterests, setSelectedInterests] = useState<string[]>([]);
+  const [connectedAccounts, setConnectedAccounts] = useState<Record<string, boolean>>({});
+  const [connectingAccount, setConnectingAccount] = useState<string | null>(null);
   const { updateUser, completeOnboarding } = useAuthStore();
+
+  // Check which accounts are already connected
+  const refreshConnectionStatus = useCallback(async () => {
+    try {
+      const [socialStatus, googleStatus, authProviders] = await Promise.all([
+        api.get<{ platforms: { id: string; connected: boolean }[] }>('/api/social/connect/status').catch(() => ({ platforms: [] })),
+        api.get<{ connected: boolean }>('/api/google/services').catch(() => ({ connected: false })),
+        api.get<{ providers: Record<string, boolean> }>('/api/auth/providers').catch(() => ({ providers: {} })),
+      ]);
+      const status: Record<string, boolean> = {};
+      for (const p of socialStatus.platforms || []) {
+        status[p.id] = p.connected;
+      }
+      status.google = googleStatus.connected || false;
+      setConnectedAccounts(status);
+    } catch { /* ignore */ }
+  }, []);
+
+  useEffect(() => { refreshConnectionStatus(); }, [refreshConnectionStatus]);
+
+  // Handle OAuth connect for onboarding
+  const handleConnect = async (provider: string) => {
+    setConnectingAccount(provider);
+    try {
+      let data: { url?: string; auth_url?: string };
+      if (provider === 'google') {
+        data = await api.get<{ auth_url: string }>('/api/google/auth-url');
+        window.open(data.auth_url, '_blank', 'width=500,height=700');
+      } else if (provider === 'twitter') {
+        data = await api.get<{ url: string }>('/api/social/connect/twitter');
+        window.open(data.url, '_blank', 'width=500,height=700');
+      } else if (provider === 'github') {
+        data = await api.get<{ url: string }>('/api/auth/github');
+        window.open(data.url, '_blank', 'width=500,height=700');
+      }
+      // Listen for popup callback
+      const checkInterval = setInterval(() => { refreshConnectionStatus(); }, 3000);
+      setTimeout(() => clearInterval(checkInterval), 60000);
+    } catch {
+      toast.error(`Could not start ${provider} connection`);
+    } finally {
+      setTimeout(() => setConnectingAccount(null), 2000);
+    }
+  };
 
   const interests = [
     { id: 'social', label: 'Social Media', icon: Share2, desc: 'Twitter, Instagram, TikTok, Reddit' },
@@ -318,7 +372,82 @@ export function OnboardingWizard({ onComplete }: OnboardingWizardProps) {
       ),
     },
 
-    /* ── Step 5: Done ── */
+    /* ── Step 5: Connect Accounts ── */
+    {
+      id: 'connect',
+      title: 'Connect Your Accounts',
+      description: 'Link your accounts so Volo can pull in your real data — DMs, emails, subscriptions, and more.',
+      icon: <Link className="w-7 h-7" />,
+      iconBg: 'from-sky-500 to-blue-600',
+      content: (
+        <div className="space-y-3 mt-2">
+          {[
+            {
+              id: 'google',
+              label: 'Google',
+              desc: 'Gmail, Calendar, YouTube & Drive',
+              icon: <Globe className="w-5 h-5" />,
+              color: 'text-red-400',
+              border: 'border-red-500/30',
+              bg: 'bg-red-500/10',
+            },
+            {
+              id: 'twitter',
+              label: 'Twitter / X',
+              desc: 'Timeline, DMs & notifications',
+              icon: <Twitter className="w-5 h-5" />,
+              color: 'text-sky-400',
+              border: 'border-sky-500/30',
+              bg: 'bg-sky-500/10',
+            },
+            {
+              id: 'github',
+              label: 'GitHub',
+              desc: 'Repos, issues & pull requests',
+              icon: <Github className="w-5 h-5" />,
+              color: 'text-purple-400',
+              border: 'border-purple-500/30',
+              bg: 'bg-purple-500/10',
+            },
+          ].map((acct) => {
+            const isConnected = connectedAccounts[acct.id];
+            const isConnecting = connectingAccount === acct.id;
+            return (
+              <motion.button
+                key={acct.id}
+                initial={{ opacity: 0, y: 8 }}
+                animate={{ opacity: 1, y: 0 }}
+                onClick={() => !isConnected && handleConnect(acct.id)}
+                disabled={isConnecting}
+                className={`w-full flex items-center gap-4 p-4 rounded-xl border text-left transition-all ${
+                  isConnected
+                    ? 'border-emerald-500/30 bg-emerald-500/5'
+                    : `${acct.border} ${acct.bg} hover:bg-white/5`
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-lg bg-white/5 flex items-center justify-center flex-shrink-0 ${isConnected ? 'text-emerald-400' : acct.color}`}>
+                  {isConnecting ? <Loader2 className="w-5 h-5 animate-spin" /> : isConnected ? <CheckCircle className="w-5 h-5" /> : acct.icon}
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className={`text-sm font-medium ${isConnected ? 'text-emerald-300' : 'text-white'}`}>
+                    {isConnected ? `${acct.label} Connected` : `Connect ${acct.label}`}
+                  </p>
+                  <p className="text-xs text-zinc-500 mt-0.5">{acct.desc}</p>
+                </div>
+                {!isConnected && !isConnecting && (
+                  <ExternalLink className="w-4 h-4 text-zinc-500 flex-shrink-0" />
+                )}
+              </motion.button>
+            );
+          })}
+          <p className="text-xs text-zinc-600 text-center pt-2">
+            You can always connect more accounts later in Settings → Integrations
+          </p>
+        </div>
+      ),
+    },
+
+    /* ── Step 6: Done ── */
     {
       id: 'done',
       title: 'You\'re all set!',

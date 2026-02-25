@@ -1,15 +1,27 @@
 'use client';
 
+import { useState } from 'react';
 import {
   MessageSquare,
   LayoutDashboard,
   Share2,
   MessagesSquare,
-  User,
+  Grid3X3,
+  X,
+  Settings,
+  History,
+  Clock,
+  Activity,
+  BarChart3,
+  Chrome,
+  Youtube,
+  Heart,
+  Terminal,
+  Package,
+  BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useAppStore, type Page } from '@/stores/appStore';
-import { useAuthStore } from '@/stores/authStore';
 
 const mobileNavItems: { id: Page; icon: typeof MessageSquare; label: string }[] = [
   { id: 'chat', icon: MessageSquare, label: 'Chat' },
@@ -18,64 +30,118 @@ const mobileNavItems: { id: Page; icon: typeof MessageSquare; label: string }[] 
   { id: 'social', icon: Share2, label: 'Social' },
 ];
 
+const moreMenuItems: { id: Page; icon: typeof Settings; label: string }[] = [
+  { id: 'settings', icon: Settings, label: 'Settings' },
+  { id: 'conversations', icon: History, label: 'History' },
+  { id: 'standing-orders', icon: Clock, label: 'Standing Orders' },
+  { id: 'activity', icon: Activity, label: 'Activity' },
+  { id: 'analytics', icon: BarChart3, label: 'Analytics' },
+  { id: 'google', icon: Chrome, label: 'Google' },
+  { id: 'youtube', icon: Youtube, label: 'YouTube' },
+  { id: 'health', icon: Heart, label: 'Health' },
+  { id: 'vscode', icon: Terminal, label: 'VS Code' },
+  { id: 'marketplace', icon: Package, label: 'Marketplace' },
+  { id: 'docs', icon: BookOpen, label: 'Docs' },
+];
+
 export function MobileBottomNav() {
   const { currentPage, setPage } = useAppStore();
-  const user = useAuthStore((s) => s.user);
+  const [moreOpen, setMoreOpen] = useState(false);
 
   // Hide on chat page — the chat input handles its own bottom-of-screen positioning
   if (currentPage === 'chat') return null;
 
   return (
-    <nav
-      className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-dark-1/95 backdrop-blur-xl border-t border-white/5 safe-area-bottom tap-none"
-      role="navigation"
-      aria-label="Main navigation"
-    >
-      <div className="flex items-center justify-around px-2 py-1">
-        {mobileNavItems.map((item) => {
-          const active = currentPage === item.id;
-          return (
-            <button
-              key={item.id}
-              onClick={() => setPage(item.id)}
-              className={cn(
-                'flex flex-col items-center gap-0.5 px-2 py-2 rounded-xl transition-all min-w-0 flex-1 min-h-[48px] active:scale-95 tap-none relative',
-                active
-                  ? 'text-brand-400'
-                  : 'text-zinc-500 active:text-zinc-300'
-              )}
-              aria-label={item.label}
-              aria-current={active ? 'page' : undefined}
-            >
-              <item.icon className={cn('w-5 h-5', active && 'drop-shadow-[0_0_6px_rgba(92,124,250,0.5)]')} />
-              <span className={cn('text-[10px] font-medium', active ? 'text-brand-400' : 'text-zinc-500')}>
-                {item.label}
-              </span>
-              {active && (
-                <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-brand-500" />
-              )}
-            </button>
-          );
-        })}
-        {/* Profile / More */}
-        <button
-          onClick={() => setPage('settings')}
-          className={cn(
-            'flex flex-col items-center gap-0.5 px-2 py-2 rounded-xl transition-all min-w-0 flex-1 min-h-[48px]',
-            currentPage === 'settings' ? 'text-brand-400' : 'text-zinc-500 active:text-zinc-300'
-          )}
-          aria-label="Settings"
-        >
-          {user?.avatar ? (
-            <img src={user.avatar} alt="" className="w-5 h-5 rounded-full" />
-          ) : (
-            <User className="w-5 h-5" />
-          )}
-          <span className={cn('text-[10px] font-medium', currentPage === 'settings' ? 'text-brand-400' : 'text-zinc-500')}>
-            More
-          </span>
-        </button>
-      </div>
-    </nav>
+    <>
+      {/* More menu overlay */}
+      {moreOpen && (
+        <div className="md:hidden fixed inset-0 z-[60] bg-black/60 backdrop-blur-sm animate-fade-in" onClick={() => setMoreOpen(false)}>
+          <div
+            className="absolute bottom-0 left-0 right-0 bg-surface-dark-1 border-t border-white/10 rounded-t-2xl safe-area-bottom p-4 pb-24 animate-slide-up-sheet"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-center justify-between mb-4">
+              <h3 className="text-sm font-semibold text-white">All Features</h3>
+              <button
+                onClick={() => setMoreOpen(false)}
+                className="p-2 rounded-full hover:bg-white/10 transition-colors"
+                aria-label="Close menu"
+              >
+                <X className="w-5 h-5 text-zinc-400" />
+              </button>
+            </div>
+            <div className="grid grid-cols-3 gap-2">
+              {moreMenuItems.map((item) => {
+                const active = currentPage === item.id;
+                return (
+                  <button
+                    key={item.id}
+                    onClick={() => { setPage(item.id); setMoreOpen(false); }}
+                    className={cn(
+                      'flex flex-col items-center gap-1.5 p-3 rounded-xl transition-all min-h-[64px] active:scale-95',
+                      active
+                        ? 'bg-brand-600/15 text-brand-400'
+                        : 'text-zinc-400 hover:bg-white/5 active:bg-white/10'
+                    )}
+                  >
+                    <item.icon className="w-5 h-5" />
+                    <span className="text-[11px] font-medium text-center leading-tight">{item.label}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Bottom nav bar */}
+      <nav
+        className="md:hidden fixed bottom-0 left-0 right-0 z-50 bg-surface-dark-1/95 backdrop-blur-xl border-t border-white/5 safe-area-bottom tap-none"
+        role="navigation"
+        aria-label="Main navigation"
+      >
+        <div className="flex items-center justify-around px-2 py-1">
+          {mobileNavItems.map((item) => {
+            const active = currentPage === item.id;
+            return (
+              <button
+                key={item.id}
+                onClick={() => setPage(item.id)}
+                className={cn(
+                  'flex flex-col items-center gap-0.5 px-2 py-2 rounded-xl transition-all min-w-0 flex-1 min-h-[48px] active:scale-95 tap-none relative',
+                  active
+                    ? 'text-brand-400'
+                    : 'text-zinc-500 active:text-zinc-300'
+                )}
+                aria-label={item.label}
+                aria-current={active ? 'page' : undefined}
+              >
+                <item.icon className={cn('w-5 h-5', active && 'drop-shadow-[0_0_6px_rgba(92,124,250,0.5)]')} />
+                <span className={cn('text-[11px] font-medium', active ? 'text-brand-400' : 'text-zinc-500')}>
+                  {item.label}
+                </span>
+                {active && (
+                  <div className="absolute top-0 left-1/2 -translate-x-1/2 w-8 h-0.5 rounded-full bg-brand-500" />
+                )}
+              </button>
+            );
+          })}
+          {/* More */}
+          <button
+            onClick={() => setMoreOpen(true)}
+            className={cn(
+              'flex flex-col items-center gap-0.5 px-2 py-2 rounded-xl transition-all min-w-0 flex-1 min-h-[48px]',
+              moreOpen ? 'text-brand-400' : 'text-zinc-500 active:text-zinc-300'
+            )}
+            aria-label="More features"
+          >
+            <Grid3X3 className="w-5 h-5" />
+            <span className={cn('text-[11px] font-medium', moreOpen ? 'text-brand-400' : 'text-zinc-500')}>
+              More
+            </span>
+          </button>
+        </div>
+      </nav>
+    </>
   );
 }

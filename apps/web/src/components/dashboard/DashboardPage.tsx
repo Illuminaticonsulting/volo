@@ -241,7 +241,7 @@ function StatusCard({
   return (
     <div className="rounded-2xl bg-surface-dark-2 border border-white/5 p-4">
       <div className="flex items-center justify-between mb-3">
-        <span className="text-[10px] text-zinc-500 uppercase tracking-wider font-semibold">
+        <span className="text-xs text-zinc-500 font-semibold">
           {label}
         </span>
         <div className={cn('w-8 h-8 rounded-xl flex items-center justify-center', c)}>

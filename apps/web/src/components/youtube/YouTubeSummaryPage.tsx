@@ -1,10 +1,10 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import {
   Youtube, Search, Play, Clock, ThumbsUp, Eye, Sparkles,
   FileText, List, BookOpen, Baby, Loader2, ExternalLink,
-  ChevronDown, Copy, Check, Share2,
+  ChevronDown, Copy, Check, Share2, Rss, Users,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -39,7 +39,16 @@ const styleOptions: { id: SummaryStyle; label: string; icon: typeof FileText; de
   { id: 'eli5', label: 'ELI5', icon: Baby, desc: 'Simple explain' },
 ];
 
+interface Subscription {
+  id: string;
+  title: string;
+  thumbnail?: string;
+  description?: string;
+  subscriber_count?: number;
+}
+
 export function YouTubeSummaryPage() {
+  const [activeTab, setActiveTab] = useState<'summarize' | 'subscriptions'>('summarize');
   const [url, setUrl] = useState('');
   const [style, setStyle] = useState<SummaryStyle>('concise');
   const [loading, setLoading] = useState(false);
@@ -49,6 +58,26 @@ export function YouTubeSummaryPage() {
   const [searchQuery, setSearchQuery] = useState('');
   const [searchResults, setSearchResults] = useState<VideoInfo[]>([]);
   const [searching, setSearching] = useState(false);
+  const [subs, setSubs] = useState<Subscription[]>([]);
+  const [subsLoading, setSubsLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeTab === 'subscriptions' && subs.length === 0) {
+      fetchSubscriptions();
+    }
+  }, [activeTab]);
+
+  const fetchSubscriptions = async () => {
+    setSubsLoading(true);
+    try {
+      const data = await api.get<{ subscriptions: Subscription[] }>('/api/youtube/subscriptions');
+      setSubs(data?.subscriptions || []);
+    } catch {
+      toast.error('Connect Google to see your YouTube subscriptions');
+    } finally {
+      setSubsLoading(false);
+    }
+  };
 
   const handleSummarize = async () => {
     if (!url.trim()) return;
@@ -103,13 +132,96 @@ export function YouTubeSummaryPage() {
             <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-red-600 to-red-700 flex items-center justify-center">
               <Youtube className="w-5 h-5 text-white" />
             </div>
-            YouTube AI Summary
+            YouTube
           </h1>
-          <p className="text-zinc-400 mt-1">Paste any YouTube URL and get an instant AI-powered summary</p>
+          <p className="text-zinc-400 mt-1">Summarize videos & browse your subscriptions</p>
+
+          {/* Tabs */}
+          <div className="flex gap-2 mt-4">
+            <button
+              onClick={() => setActiveTab('summarize')}
+              className={cn(
+                'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
+                activeTab === 'summarize'
+                  ? 'bg-brand-600 text-white'
+                  : 'bg-white/5 text-zinc-400 hover:bg-white/10'
+              )}
+            >
+              <Sparkles className="w-4 h-4" /> Summarize
+            </button>
+            <button
+              onClick={() => setActiveTab('subscriptions')}
+              className={cn(
+                'px-4 py-2 rounded-lg text-sm font-medium transition-all flex items-center gap-2',
+                activeTab === 'subscriptions'
+                  ? 'bg-brand-600 text-white'
+                  : 'bg-white/5 text-zinc-400 hover:bg-white/10'
+              )}
+            >
+              <Rss className="w-4 h-4" /> Subscriptions
+            </button>
+          </div>
         </div>
       </div>
 
       <div className="max-w-4xl mx-auto px-6 py-6 space-y-6">
+        {/* Subscriptions Tab */}
+        {activeTab === 'subscriptions' && (
+          <div className="space-y-4">
+            {subsLoading ? (
+              <div className="flex items-center justify-center py-16 gap-3">
+                <Loader2 className="w-6 h-6 animate-spin text-brand-400" />
+                <span className="text-zinc-400 text-sm">Loading subscriptions...</span>
+              </div>
+            ) : subs.length === 0 ? (
+              <div className="text-center py-16 text-zinc-500">
+                <Rss className="w-12 h-12 mx-auto mb-3 opacity-20" />
+                <p className="text-sm">No subscriptions found — connect Google in Settings to see them.</p>
+              </div>
+            ) : (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                {subs.map((sub) => (
+                  <motion.div
+                    key={sub.id}
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    className="flex items-center gap-3 p-4 rounded-xl bg-white/[0.03] border border-white/5 hover:bg-white/[0.06] transition-colors"
+                  >
+                    {sub.thumbnail ? (
+                      <img src={sub.thumbnail} alt="" className="w-12 h-12 rounded-full flex-shrink-0" />
+                    ) : (
+                      <div className="w-12 h-12 rounded-full bg-red-500/10 flex items-center justify-center flex-shrink-0">
+                        <Youtube className="w-5 h-5 text-red-400" />
+                      </div>
+                    )}
+                    <div className="flex-1 min-w-0">
+                      <p className="text-white text-sm font-medium truncate">{sub.title}</p>
+                      {sub.subscriber_count !== undefined && (
+                        <p className="text-zinc-500 text-xs flex items-center gap-1 mt-0.5">
+                          <Users className="w-3 h-3" />
+                          {formatViews(sub.subscriber_count)} subscribers
+                        </p>
+                      )}
+                    </div>
+                    <button
+                      onClick={() => {
+                        setSearchQuery(sub.title);
+                        setActiveTab('summarize');
+                        setTimeout(() => handleSearch(), 200);
+                      }}
+                      className="p-2 rounded-lg bg-white/5 hover:bg-white/10 text-zinc-400 hover:text-brand-400 flex-shrink-0"
+                      title="Search videos from this channel"
+                    >
+                      <Search className="w-4 h-4" />
+                    </button>
+                  </motion.div>
+                ))}
+              </div>
+            )}
+          </div>
+        )}
+
+        {activeTab === 'summarize' && (<>
         {/* URL Input */}
         <div className="bg-white/[0.03] rounded-2xl border border-white/5 p-5">
           <label className="text-sm text-zinc-400 mb-2 block">Video URL</label>
@@ -322,6 +434,7 @@ export function YouTubeSummaryPage() {
             </div>
           )}
         </div>
+        </>)}
       </div>
     </div>
   );

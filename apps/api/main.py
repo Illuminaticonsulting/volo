@@ -33,6 +33,7 @@ from app.routes import social_connect as social_connect_routes
 from app.routes import social_actions as social_actions_routes
 from app.routes import fitness as fitness_routes
 from app.routes import remote as remote_routes
+from app.routes import summarize as summarize_routes
 
 from app.database import init_db
 from app.middleware import RateLimitMiddleware, RequestLogMiddleware
@@ -127,6 +128,9 @@ app.include_router(remote_routes.router, prefix="/api", tags=["Remote Agent"])
 
 # ── Authenticator Vault (built-in 2FA)
 app.include_router(authenticator_routes.router, prefix="/api", tags=["Authenticator"])
+
+# ── AI Summarize
+app.include_router(summarize_routes.router, prefix="/api", tags=["AI Summarize"])
 
 @app.get("/")
 async def root():

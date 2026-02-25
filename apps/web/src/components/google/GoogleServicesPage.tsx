@@ -4,9 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   Mail, Calendar, Cloud, Youtube, Users, Image, CheckSquare, Heart,
   ChevronRight, Shield, LogIn, RefreshCw, CheckCircle, AlertCircle,
-  ExternalLink, Inbox, Clock,
+  ExternalLink, Inbox, Clock, Sparkles, Loader2,
 } from 'lucide-react';
-import { motion } from 'framer-motion';
+import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
 import { api } from '@/lib/api';
 import { toast } from 'sonner';
@@ -68,6 +68,8 @@ export function GoogleServicesPage() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loadingEmails, setLoadingEmails] = useState(false);
   const [loadingEvents, setLoadingEvents] = useState(false);
+  const [summarizingEmail, setSummarizingEmail] = useState<string | null>(null);
+  const [emailSummaries, setEmailSummaries] = useState<Record<string, string>>({});
 
   const fetchServices = useCallback(async () => {
     try {
@@ -178,6 +180,26 @@ export function GoogleServicesPage() {
   const parseFrom = (from: string) => {
     const match = from.match(/^(.+?)\s*<.+>$/);
     return match ? match[1].replace(/"/g, '') : from;
+  };
+
+  const handleSummarizeEmail = async (email: GmailMessage) => {
+    if (emailSummaries[email.id]) {
+      setEmailSummaries(prev => { const n = { ...prev }; delete n[email.id]; return n; });
+      return;
+    }
+    setSummarizingEmail(email.id);
+    try {
+      const data = await api.post<{ summary: string }>('/api/ai/summarize', {
+        content: `From: ${email.from}\nSubject: ${email.subject}\n\n${email.snippet}`,
+        content_type: 'email',
+        style: 'bullet_points',
+      });
+      setEmailSummaries(prev => ({ ...prev, [email.id]: data.summary }));
+    } catch {
+      toast.error('Could not summarize email');
+    } finally {
+      setSummarizingEmail(null);
+    }
   };
 
   const serviceStats = (svc: GoogleService) => {
@@ -357,7 +379,37 @@ export function GoogleServicesPage() {
                         {email.subject}
                       </p>
                       <p className="text-xs text-zinc-500 truncate mt-0.5">{email.snippet}</p>
+                      <AnimatePresence>
+                        {emailSummaries[email.id] && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: 'auto', opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="mt-2 p-2 rounded-lg bg-brand-500/5 border border-brand-500/10">
+                              <p className="text-xs text-zinc-300 flex items-start gap-1.5">
+                                <Sparkles className="w-3 h-3 text-brand-400 mt-0.5 flex-shrink-0" />
+                                {emailSummaries[email.id]}
+                              </p>
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
                     </div>
+                    <button
+                      onClick={() => handleSummarizeEmail(email)}
+                      disabled={summarizingEmail === email.id}
+                      className={cn(
+                        'p-1.5 rounded-lg transition-colors shrink-0',
+                        emailSummaries[email.id]
+                          ? 'text-brand-400 bg-brand-500/10'
+                          : 'text-zinc-500 hover:text-brand-400 hover:bg-white/10'
+                      )}
+                      title="Summarize email"
+                    >
+                      {summarizingEmail === email.id ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    </button>
                   </div>
                 ))}
               </div>

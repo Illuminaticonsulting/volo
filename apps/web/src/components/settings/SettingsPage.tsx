@@ -26,7 +26,7 @@ import { api, API_URL } from '@/lib/api';
 type SettingsTab = 'api-keys' | 'integrations' | 'appearance' | 'accessibility' | 'notifications';
 
 export function SettingsPage() {
-  const [activeTab, setActiveTab] = useState<SettingsTab>('api-keys');
+  const [activeTab, setActiveTab] = useState<SettingsTab>('integrations');
 
   const tabs = [
     { id: 'api-keys' as const, label: 'API Keys', icon: Key },

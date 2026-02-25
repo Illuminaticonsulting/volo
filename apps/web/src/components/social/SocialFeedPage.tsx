@@ -5,7 +5,7 @@ import {
   Heart, MessageCircle, Share2, RefreshCw,
   ExternalLink, Twitter, Instagram, Linkedin, Music, Globe,
   Bookmark, MoreHorizontal, Send, X, Plus, Link2, Unlink,
-  Facebook as FacebookIcon,
+  Facebook as FacebookIcon, Sparkles, Loader2,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -78,6 +78,8 @@ export function SocialFeedPage() {
   const [composeText, setComposeText] = useState('');
   const [composePlatform, setComposePlatform] = useState('twitter');
   const [showConnectPanel, setShowConnectPanel] = useState(false);
+  const [summarizingPost, setSummarizingPost] = useState<string | null>(null);
+  const [postSummaries, setPostSummaries] = useState<Record<string, string>>({});
   const commentRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
@@ -248,6 +250,28 @@ export function SocialFeedPage() {
     const hours = Math.floor(mins / 60);
     if (hours < 24) return `${hours}h`;
     return `${Math.floor(hours / 24)}d`;
+  };
+
+  const handleSummarizePost = async (post: SocialPost) => {
+    const key = `${post.platform}:${post.id}`;
+    if (postSummaries[key]) {
+      // Toggle off
+      setPostSummaries(prev => { const n = { ...prev }; delete n[key]; return n; });
+      return;
+    }
+    setSummarizingPost(key);
+    try {
+      const data = await api.post<{ summary: string }>('/api/ai/summarize', {
+        content: `${post.author} (@${post.username}): ${post.content}`,
+        content_type: 'post',
+        style: 'concise',
+      });
+      setPostSummaries(prev => ({ ...prev, [key]: data.summary }));
+    } catch {
+      toast.error('Could not summarize post');
+    } finally {
+      setSummarizingPost(null);
+    }
   };
 
   const connectedPlatforms = platforms.filter(p => p.connected);
@@ -467,7 +491,7 @@ export function SocialFeedPage() {
                     <div className="flex items-center gap-2">
                       <span className="text-white font-semibold text-sm">{post.author}</span>
                       <span className="text-zinc-500 text-sm">{post.username}</span>
-                      <span className="text-zinc-600 text-xs">{'\\u00B7'} {timeAgo(post.timestamp)}</span>
+                      <span className="text-zinc-600 text-xs">{"\u00B7"} {timeAgo(post.timestamp)}</span>
                     </div>
                     {post.subreddit && (
                       <span className="text-orange-400 text-xs">r/{post.subreddit}</span>
@@ -554,6 +578,19 @@ export function SocialFeedPage() {
                   </div>
                   <div className="flex items-center gap-2">
                     <button
+                      onClick={() => handleSummarizePost(post)}
+                      disabled={summarizingPost === postKey}
+                      className={cn(
+                        'p-1.5 rounded-lg transition-colors',
+                        postSummaries[postKey]
+                          ? 'text-brand-400 bg-brand-500/10'
+                          : 'text-zinc-500 hover:text-brand-400 hover:bg-white/10'
+                      )}
+                      title="AI Summary"
+                    >
+                      {summarizingPost === postKey ? <Loader2 className="w-4 h-4 animate-spin" /> : <Sparkles className="w-4 h-4" />}
+                    </button>
+                    <button
                       onClick={() => toggleSave(post.id)}
                       className={cn(
                         'p-1.5 rounded-lg transition-colors',
@@ -566,6 +603,25 @@ export function SocialFeedPage() {
                     </button>
                   </div>
                 </div>
+
+                {/* AI Summary */}
+                <AnimatePresence>
+                  {postSummaries[postKey] && (
+                    <motion.div
+                      initial={{ height: 0, opacity: 0 }}
+                      animate={{ height: 'auto', opacity: 1 }}
+                      exit={{ height: 0, opacity: 0 }}
+                      className="overflow-hidden"
+                    >
+                      <div className="mt-3 p-3 rounded-xl bg-brand-500/5 border border-brand-500/10">
+                        <div className="flex items-start gap-2">
+                          <Sparkles className="w-3.5 h-3.5 text-brand-400 mt-0.5 flex-shrink-0" />
+                          <p className="text-sm text-zinc-300">{postSummaries[postKey]}</p>
+                        </div>
+                      </div>
+                    </motion.div>
+                  )}
+                </AnimatePresence>
 
                 {/* Comment Input */}
                 <AnimatePresence>

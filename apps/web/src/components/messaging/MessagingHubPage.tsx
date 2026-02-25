@@ -4,7 +4,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   MessageSquare, Send, Phone, Video, Search, RefreshCw,
   MoreVertical, Paperclip, Smile, Check, CheckCheck,
-  ArrowLeft,
+  ArrowLeft, Sparkles,
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { cn } from '@/lib/utils';
@@ -34,6 +34,7 @@ interface PlatformInfo {
 }
 
 const platformConfig: Record<string, { color: string; bg: string; icon: string }> = {
+  twitter: { color: 'text-sky-400', bg: 'bg-sky-500/10', icon: '🐦' },
   telegram: { color: 'text-sky-400', bg: 'bg-sky-500/10', icon: '✈️' },
   whatsapp: { color: 'text-green-400', bg: 'bg-green-500/10', icon: '💬' },
   whatsapp_business: { color: 'text-teal-400', bg: 'bg-teal-500/10', icon: '💼' },
@@ -41,6 +42,7 @@ const platformConfig: Record<string, { color: string; bg: string; icon: string }
   signal: { color: 'text-blue-500', bg: 'bg-blue-500/10', icon: '🔒' },
   discord: { color: 'text-indigo-400', bg: 'bg-indigo-500/10', icon: '🎮' },
   slack: { color: 'text-purple-400', bg: 'bg-purple-500/10', icon: '💼' },
+  gmail: { color: 'text-red-400', bg: 'bg-red-500/10', icon: '📧' },
 };
 
 export function MessagingHubPage() {
@@ -51,6 +53,8 @@ export function MessagingHubPage() {
   const [loading, setLoading] = useState(true);
   const [replyText, setReplyText] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [summary, setSummary] = useState<string | null>(null);
+  const [summarizing, setSummarizing] = useState(false);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { fetchMessages(); }, []);
@@ -147,6 +151,29 @@ export function MessagingHubPage() {
 
   const totalUnread = Object.values(chats).reduce((sum, c) => sum + c.unread, 0);
 
+  const handleSummarize = async () => {
+    if (!activeChatData) return;
+    setSummarizing(true);
+    setSummary(null);
+    try {
+      const content = activeChatData.messages
+        .slice()
+        .reverse()
+        .map((m) => `${m.from}: ${m.content}`)
+        .join('\n');
+      const data = await api.post<{ summary: string }>('/api/ai/summarize', {
+        content,
+        content_type: 'thread',
+        style: 'bullet_points',
+      });
+      setSummary(data.summary);
+    } catch {
+      toast.error('Could not summarize conversation');
+    } finally {
+      setSummarizing(false);
+    }
+  };
+
   return (
     <div className="flex-1 flex overflow-hidden bg-surface-dark-2">
       {/* Chat List */}
@@ -235,7 +262,7 @@ export function MessagingHubPage() {
               return (
                 <button
                   key={chatKey}
-                  onClick={() => setActiveChat(chatKey)}
+                  onClick={() => { setActiveChat(chatKey); setSummary(null); }}
                   className={cn(
                     'w-full flex items-center gap-3 px-4 py-3 text-left hover:bg-white/[0.03] transition-colors border-b border-white/[0.03]',
                     activeChat === chatKey && 'bg-white/[0.05]'
@@ -293,6 +320,9 @@ export function MessagingHubPage() {
                 </p>
               </div>
               <div className="flex items-center gap-1">
+                <button onClick={handleSummarize} disabled={summarizing} className="p-2 rounded-lg hover:bg-white/10 text-zinc-400 disabled:opacity-30" title="Summarize conversation">
+                  <Sparkles className={cn('w-4 h-4', summarizing && 'animate-spin')} />
+                </button>
                 <button onClick={() => toast.info('Voice calls coming soon — use the native app for now')} className="p-2 rounded-lg hover:bg-white/10 text-zinc-400" title="Voice call">
                   <Phone className="w-4 h-4" />
                 </button>
@@ -304,6 +334,28 @@ export function MessagingHubPage() {
                 </button>
               </div>
             </div>
+
+            {/* Summary Banner */}
+            <AnimatePresence>
+              {summary && (
+                <motion.div
+                  initial={{ height: 0, opacity: 0 }}
+                  animate={{ height: 'auto', opacity: 1 }}
+                  exit={{ height: 0, opacity: 0 }}
+                  className="border-b border-brand-500/20 bg-brand-500/5 overflow-hidden"
+                >
+                  <div className="px-4 py-3">
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex items-start gap-2 min-w-0">
+                        <Sparkles className="w-4 h-4 text-brand-400 mt-0.5 flex-shrink-0" />
+                        <p className="text-sm text-zinc-300 whitespace-pre-wrap">{summary}</p>
+                      </div>
+                      <button onClick={() => setSummary(null)} className="text-zinc-500 hover:text-white text-xs flex-shrink-0">✕</button>
+                    </div>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
 
             {/* Messages */}
             <div className="flex-1 overflow-y-auto p-4 space-y-3">

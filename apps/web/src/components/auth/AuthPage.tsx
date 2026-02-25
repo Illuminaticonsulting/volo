@@ -393,7 +393,7 @@ export function AuthPage() {
 
             {mode === 'login' && (
               <div className="text-right">
-                <button type="button" onClick={() => { if (!email) { toast.error('Enter your email first'); return; } api.post('/api/auth/forgot-password', { email }).then(() => toast.success('Password reset email sent!')).catch(() => toast.info('Password reset is not configured yet')); }} className="text-xs text-brand-400 hover:text-brand-300 transition-colors">
+                <button type="button" onClick={() => { if (!email) { toast.error('Enter your email first'); return; } api.post('/api/auth/forgot-password', { email }).then(() => toast.success('Password reset email sent!')).catch(() => toast.info('Password reset is not configured yet')); }} className="text-sm text-brand-400 hover:text-brand-300 transition-colors underline underline-offset-2">
                   Forgot password?
                 </button>
               </div>
@@ -427,7 +427,7 @@ export function AuthPage() {
           </p>
 
           {/* Terms */}
-          <p className="text-center text-[11px] text-zinc-600 mt-4 leading-relaxed">
+          <p className="text-center text-xs text-zinc-600 mt-4 leading-relaxed">
             By continuing, you agree to Volo&apos;s{' '}
             <span className="text-zinc-500 underline cursor-pointer">Terms of Service</span>
             {' '}and{' '}

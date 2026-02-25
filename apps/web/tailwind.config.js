@@ -41,6 +41,7 @@ module.exports = {
       animation: {
         'pulse-soft': 'pulse-soft 2s ease-in-out infinite',
         'slide-up': 'slide-up 0.3s ease-out',
+        'slide-up-sheet': 'slide-up-sheet 0.3s ease-out',
         'fade-in': 'fade-in 0.2s ease-out',
         'thinking': 'thinking 1.5s ease-in-out infinite',
       },
@@ -52,6 +53,10 @@ module.exports = {
         'slide-up': {
           '0%': { transform: 'translateY(10px)', opacity: 0 },
           '100%': { transform: 'translateY(0)', opacity: 1 },
+        },
+        'slide-up-sheet': {
+          '0%': { transform: 'translateY(100%)' },
+          '100%': { transform: 'translateY(0)' },
         },
         'fade-in': {
           '0%': { opacity: 0 },
