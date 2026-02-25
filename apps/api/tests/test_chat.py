@@ -5,9 +5,9 @@ from httpx import AsyncClient
 
 
 @pytest.mark.asyncio
-async def test_conversations_list(client: AsyncClient):
+async def test_conversations_list(auth_client: AsyncClient):
     """Test listing conversations."""
-    response = await client.get("/api/conversations")
+    response = await auth_client.get("/api/conversations")
     assert response.status_code == 200
     data = response.json()
     assert "conversations" in data
@@ -15,9 +15,9 @@ async def test_conversations_list(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_conversation_create(client: AsyncClient):
+async def test_conversation_create(auth_client: AsyncClient):
     """Test creating a conversation."""
-    response = await client.post(
+    response = await auth_client.post(
         "/api/conversations",
         json={"title": "Test Conversation"},
     )
@@ -28,38 +28,38 @@ async def test_conversation_create(client: AsyncClient):
 
 
 @pytest.mark.asyncio
-async def test_conversation_get(client: AsyncClient):
+async def test_conversation_get(auth_client: AsyncClient):
     """Test getting a conversation."""
     # Create first
-    create = await client.post(
+    create = await auth_client.post(
         "/api/conversations",
         json={"title": "Get Test"},
     )
     conv_id = create.json()["id"]
 
-    response = await client.get(f"/api/conversations/{conv_id}")
+    response = await auth_client.get(f"/api/conversations/{conv_id}")
     assert response.status_code == 200
     assert response.json()["title"] == "Get Test"
 
 
 @pytest.mark.asyncio
-async def test_conversation_delete(client: AsyncClient):
+async def test_conversation_delete(auth_client: AsyncClient):
     """Test deleting a conversation."""
-    create = await client.post(
+    create = await auth_client.post(
         "/api/conversations",
         json={"title": "Delete Me"},
     )
     conv_id = create.json()["id"]
 
-    response = await client.delete(f"/api/conversations/{conv_id}")
+    response = await auth_client.delete(f"/api/conversations/{conv_id}")
     assert response.status_code == 200
     assert response.json()["deleted"] is True
 
 
 @pytest.mark.asyncio
-async def test_conversation_not_found(client: AsyncClient):
+async def test_conversation_not_found(auth_client: AsyncClient):
     """Test getting a non-existent conversation."""
-    response = await client.get("/api/conversations/non-existent-id")
+    response = await auth_client.get("/api/conversations/non-existent-id")
     assert response.status_code == 404
 
 
