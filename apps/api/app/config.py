@@ -67,6 +67,10 @@ class Settings(BaseSettings):
     slack_signing_secret: str = ""
     slack_redirect_uri: str = ""
 
+    # Webhook signing secrets
+    github_webhook_secret: str = ""
+    stripe_webhook_secret: str = ""
+
     # Plaid (Banking)
     plaid_client_id: str = ""
     plaid_secret: str = ""

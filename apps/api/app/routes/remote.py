@@ -5,6 +5,7 @@ coding chat (autonomous agent loop), and GitHub repository listing.
 """
 
 import os
+import re
 import json
 import time
 import asyncio
@@ -17,7 +18,10 @@ from sqlalchemy import select
 
 from app.services.remote_agent import remote_manager
 from app.agent.coding_agent import CodingAgent
+from app.config import settings
 from app.database import async_session, Integration
+
+_AGENT_KEY_RE = re.compile(r"^[A-Za-z0-9_-]{8,128}$")
 
 router = APIRouter()
 coding_agent = CodingAgent()
@@ -122,12 +126,13 @@ async def get_setup_script(agent_key: str, request: Request):
     Returns a bash script that installs and starts the Volo desktop agent.
     Usage: curl -sL "https://volo.kingpinstrategies.com/api/setup/AGENT_KEY" | bash
     """
-    # Determine server URL from the incoming request
-    scheme = request.headers.get("x-forwarded-proto", request.url.scheme)
-    host = request.headers.get("x-forwarded-host", request.headers.get("host", "localhost:8000"))
-    base_url = f"{scheme}://{host}"
-    ws_scheme = "wss" if scheme == "https" else "ws"
-    ws_url = f"{ws_scheme}://{host}"
+    if not _AGENT_KEY_RE.match(agent_key):
+        raise HTTPException(400, "Invalid agent key format")
+
+    # Build URLs from config, not from untrusted request headers
+    base_url = settings.frontend_url.rstrip("/")
+    ws_scheme = "wss" if base_url.startswith("https") else "ws"
+    ws_url = base_url.replace("https://", "wss://").replace("http://", "ws://")
 
     script = f'''#!/bin/bash
 # ══════════════════════════════════════════════

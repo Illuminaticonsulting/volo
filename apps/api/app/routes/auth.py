@@ -550,12 +550,12 @@ async def apple_oauth_start():
 # ===== Slack OAuth 2.0 (Bot Installation) =====
 
 @router.get("/slack")
-async def slack_oauth_start():
+async def slack_oauth_start(current_user: CurrentUser = Depends(get_current_user)):
     """Redirect to Slack OAuth consent screen to install bot."""
     if not settings.slack_client_id:
         raise HTTPException(501, "Slack OAuth not configured. Set SLACK_CLIENT_ID and SLACK_CLIENT_SECRET.")
 
-    state = await _store_state("slack")
+    state = await _store_state("slack", {"user_id": current_user.user_id})
     redirect_uri = settings.slack_redirect_uri or f"{settings.frontend_url}/api/auth/slack/callback"
     scopes = "channels:history,channels:read,chat:write,groups:read,groups:history,im:history,im:read,mpim:read,users:read,search:read"
     auth_url = (
@@ -575,7 +575,10 @@ async def slack_oauth_callback(code: str = "", state: str = ""):
         if not code or not state:
             return _error_redirect("Missing code or state")
 
-        await _pop_state(state, "slack")
+        state_data = await _pop_state(state, "slack")
+        user_id = state_data.get("user_id")
+        if not user_id:
+            return _error_redirect("Slack auth failed: missing user context")
         redirect_uri = settings.slack_redirect_uri or f"{settings.frontend_url}/api/auth/slack/callback"
 
         async with httpx.AsyncClient() as client:
@@ -601,7 +604,7 @@ async def slack_oauth_callback(code: str = "", state: str = ""):
         async with async_session() as session:
             result = await session.execute(
                 select(Integration).where(
-                    Integration.user_id == "dev-user",
+                    Integration.user_id == user_id,
                     Integration.type == "slack",
                 )
             )
@@ -612,7 +615,7 @@ async def slack_oauth_callback(code: str = "", state: str = ""):
                 existing.last_sync_at = datetime.utcnow()
             else:
                 session.add(Integration(
-                    user_id="dev-user",
+                    user_id=user_id,
                     type="slack",
                     category="communication",
                     name=f"Slack ({team_name})",

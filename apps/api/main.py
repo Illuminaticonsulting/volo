@@ -8,8 +8,9 @@ import logging
 import os
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -72,6 +73,24 @@ from app.routes import finance as finance_routes
 
 from app.database import init_db
 from app.middleware import RateLimitMiddleware, RequestLogMiddleware
+
+
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    """Add defensive security headers to every response."""
+
+    async def dispatch(self, request: Request, call_next) -> Response:
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        response.headers["Content-Security-Policy"] = (
+            "default-src 'self'; "
+            "script-src 'self'; "
+            "style-src 'self' 'unsafe-inline'; "
+            "img-src 'self' data: https:; "
+            "connect-src 'self'"
+        )
+        return response
 from app.services.cache import cache
 from app.services.remote_agent import remote_manager
 
@@ -105,6 +124,7 @@ app = FastAPI(
 )
 
 # Middleware (order matters — outermost first)
+app.add_middleware(SecurityHeadersMiddleware)
 app.add_middleware(RequestLogMiddleware)
 app.add_middleware(RateLimitMiddleware, requests_per_minute=120)
 app.add_middleware(
@@ -115,8 +135,8 @@ app.add_middleware(
         "http://localhost:3001",
     ],
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 # ── Core Routes ─────────────────────────────────────────────────────────────

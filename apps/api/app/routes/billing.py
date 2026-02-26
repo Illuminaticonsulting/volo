@@ -6,6 +6,7 @@ Subscription management, plan info, checkout sessions.
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel
 from app.auth import get_current_user, CurrentUser
+from app.config import settings
 from app.database import async_session, User
 from app.services.billing import BillingService
 
@@ -29,8 +30,6 @@ async def get_usage(current_user: CurrentUser = Depends(get_current_user)):
 
 class CheckoutRequest(BaseModel):
     plan: str
-    success_url: str = "http://localhost:3000/settings?tab=billing&status=success"
-    cancel_url: str = "http://localhost:3000/settings?tab=billing&status=canceled"
 
 
 @router.post("/billing/checkout")
@@ -47,11 +46,12 @@ async def create_checkout(body: CheckoutRequest, current_user: CurrentUser = Dep
         user_row = await session.get(User, current_user.user_id)
         customer_id = getattr(user_row, "stripe_customer_id", "") or "" if user_row else ""
 
+    base = settings.frontend_url.rstrip("/")
     result = await billing.create_checkout_session(
         customer_id=customer_id,
         price_id=plan["price_id"],
-        success_url=body.success_url,
-        cancel_url=body.cancel_url,
+        success_url=f"{base}/settings?tab=billing&status=success",
+        cancel_url=f"{base}/settings?tab=billing&status=canceled",
     )
     return result
 

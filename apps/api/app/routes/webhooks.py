@@ -6,12 +6,17 @@ Receive and dispatch webhooks from external services.
 import uuid
 import os
 import json
+import hmac
+import hashlib
+import time
 import logging
 from datetime import datetime
 
 from fastapi import APIRouter, Request, HTTPException
 from pydantic import BaseModel
 import httpx
+
+from app.config import settings
 
 logger = logging.getLogger("volo.webhooks")
 
@@ -65,10 +70,25 @@ async def delete_webhook(webhook_id: str):
 
 # ── Inbound Webhooks ────────────────────────
 
+def _verify_github_signature(body: bytes, signature_header: str, secret: str) -> bool:
+    """Verify GitHub webhook HMAC-SHA256 signature."""
+    if not signature_header.startswith("sha256="):
+        return False
+    expected = hmac.new(secret.encode(), body, hashlib.sha256).hexdigest()
+    received = signature_header[len("sha256="):]
+    return hmac.compare_digest(expected, received)
+
+
 @router.post("/webhooks/github")
 async def github_webhook(request: Request):
     """Receive GitHub webhook events (push, PR, issue, etc.)."""
     body = await request.body()
+
+    if settings.github_webhook_secret:
+        sig = request.headers.get("X-Hub-Signature-256", "")
+        if not _verify_github_signature(body, sig, settings.github_webhook_secret):
+            raise HTTPException(401, "Invalid webhook signature")
+
     event_type = request.headers.get("X-GitHub-Event", "unknown")
     delivery_id = request.headers.get("X-GitHub-Delivery", "")
 
@@ -90,10 +110,38 @@ async def github_webhook(request: Request):
     return {"received": True, "event_type": event_type}
 
 
+def _verify_stripe_signature(body: bytes, signature_header: str, secret: str) -> bool:
+    """
+    Verify Stripe webhook signature.
+    Stripe signs: f"{timestamp}.{body}" with HMAC-SHA256.
+    Header format: "t=<ts>,v1=<sig>[,v1=<sig2>...]"
+    """
+    parts = {k: v for k, v in (item.split("=", 1) for item in signature_header.split(",") if "=" in item)}
+    ts = parts.get("t", "")
+    v1 = parts.get("v1", "")
+    if not ts or not v1:
+        return False
+    # Reject events older than 5 minutes
+    try:
+        if abs(time.time() - int(ts)) > 300:
+            return False
+    except ValueError:
+        return False
+    signed_payload = f"{ts}.{body.decode()}"
+    expected = hmac.new(secret.encode(), signed_payload.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, v1)
+
+
 @router.post("/webhooks/stripe")
 async def stripe_webhook(request: Request):
     """Receive Stripe webhook events (subscription, payment, etc.)."""
     body = await request.body()
+
+    if settings.stripe_webhook_secret:
+        sig = request.headers.get("Stripe-Signature", "")
+        if not _verify_stripe_signature(body, sig, settings.stripe_webhook_secret):
+            raise HTTPException(401, "Invalid webhook signature")
+
     try:
         payload = json.loads(body)
     except json.JSONDecodeError:
@@ -112,10 +160,30 @@ async def stripe_webhook(request: Request):
     return {"received": True, "event_type": event_type}
 
 
+def _verify_slack_signature(body: bytes, timestamp: str, signature_header: str, secret: str) -> bool:
+    """Verify Slack webhook signing secret (v0 scheme)."""
+    try:
+        if abs(time.time() - int(timestamp)) > 300:
+            return False
+    except ValueError:
+        return False
+    basestring = f"v0:{timestamp}:{body.decode()}"
+    expected = "v0=" + hmac.new(secret.encode(), basestring.encode(), hashlib.sha256).hexdigest()
+    return hmac.compare_digest(expected, signature_header)
+
+
 @router.post("/webhooks/slack")
 async def slack_webhook(request: Request):
     """Receive Slack event subscriptions."""
-    body = await request.json()
+    body = await request.body()
+
+    if settings.slack_signing_secret:
+        ts = request.headers.get("X-Slack-Request-Timestamp", "")
+        sig = request.headers.get("X-Slack-Signature", "")
+        if not _verify_slack_signature(body, ts, sig, settings.slack_signing_secret):
+            raise HTTPException(401, "Invalid webhook signature")
+
+    body = json.loads(body)
 
     # Slack URL verification challenge
     if body.get("type") == "url_verification":
