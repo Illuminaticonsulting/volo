@@ -4,9 +4,7 @@ Handles OAuth flows for Twitter/X, Instagram, TikTok, and Facebook.
 Stores tokens in the Integration table per user.
 """
 
-import json
 import logging
-import secrets
 from datetime import datetime
 
 import httpx
@@ -15,28 +13,16 @@ from sqlalchemy import select, and_
 from app.config import settings
 from app.database import async_session, Integration
 from app.services.cache import cache
+from app.services.oauth import store_oauth_state, pop_oauth_state
 
 logger = logging.getLogger("volo.social_oauth")
 
-_OAUTH_STATE_TTL = 600  # 10 minutes
-
-
+# Thin aliases used by social_connect routes (keep "social_state:" prefix for isolation)
 async def _store_state(provider: str, extra: dict | None = None) -> str:
-    state = secrets.token_urlsafe(32)
-    payload = {"provider": provider, "created_at": datetime.utcnow().isoformat(), **(extra or {})}
-    await cache.set(f"social_state:{state}", json.dumps(payload), ttl=_OAUTH_STATE_TTL)
-    return state
-
+    return await store_oauth_state(provider, extra, key_prefix="social_state")
 
 async def _pop_state(state: str, provider: str) -> dict:
-    raw = await cache.get(f"social_state:{state}")
-    await cache.delete(f"social_state:{state}")
-    if not raw:
-        raise ValueError("Invalid or expired OAuth state")
-    data = json.loads(raw)
-    if data.get("provider") != provider:
-        raise ValueError("State provider mismatch")
-    return data
+    return await pop_oauth_state(state, provider, key_prefix="social_state")
 
 
 class SocialOAuthService:

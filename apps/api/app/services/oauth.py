@@ -1,8 +1,11 @@
 """
 VOLO — Shared OAuth Utilities
 Find-or-create user from OAuth profile, issue JWT, redirect to frontend.
+State management for all OAuth flows (shared between auth and social_oauth).
 """
 
+import json
+import secrets
 import uuid
 from datetime import datetime
 from urllib.parse import urlencode, quote
@@ -12,6 +15,50 @@ from sqlalchemy import select
 from app.auth import create_access_token, create_refresh_token
 from app.database import async_session, User, Integration
 from app.config import settings
+
+# ── OAuth state helpers (Redis-backed, multi-worker safe) ─────────────────────
+
+_OAUTH_STATE_TTL = 600  # 10 minutes
+
+
+async def store_oauth_state(
+    provider: str,
+    extra: dict | None = None,
+    key_prefix: str = "oauth_state",
+) -> str:
+    """
+    Generate a CSRF state token and persist it in Redis.
+    Returns the state string to embed in the OAuth redirect URL.
+    """
+    from app.services.cache import cache
+    state = secrets.token_urlsafe(32)
+    payload = {
+        "provider": provider,
+        "created_at": datetime.utcnow().isoformat(),
+        **(extra or {}),
+    }
+    await cache.set(f"{key_prefix}:{state}", json.dumps(payload), ttl=_OAUTH_STATE_TTL)
+    return state
+
+
+async def pop_oauth_state(
+    state: str,
+    provider: str,
+    key_prefix: str = "oauth_state",
+) -> dict:
+    """
+    Retrieve and delete an OAuth state from Redis.
+    Raises ValueError on missing, expired, or provider-mismatched state.
+    """
+    from app.services.cache import cache
+    raw = await cache.get(f"{key_prefix}:{state}")
+    await cache.delete(f"{key_prefix}:{state}")
+    if not raw:
+        raise ValueError("Invalid or expired OAuth state")
+    data = json.loads(raw)
+    if data.get("provider") != provider:
+        raise ValueError("OAuth state provider mismatch")
+    return data
 
 
 async def find_or_create_oauth_user(

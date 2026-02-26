@@ -6,7 +6,6 @@ Google, GitHub, Discord, and Twitter/X.
 OAuth state is stored in Redis (works across multiple Gunicorn workers).
 """
 
-import json
 import uuid
 import secrets
 import hashlib
@@ -27,38 +26,26 @@ from app.auth import (
 )
 from app.database import async_session, User, Integration
 from app.config import settings
-from app.services.oauth import find_or_create_oauth_user, build_frontend_redirect
-from app.services.cache import cache
+from app.services.oauth import (
+    find_or_create_oauth_user, build_frontend_redirect,
+    store_oauth_state, pop_oauth_state,
+)
 
 logger = logging.getLogger("volo.auth")
 router = APIRouter()
 
-# -- Redis-backed OAuth state (safe for multi-worker) --
-_OAUTH_STATE_TTL = 600  # 10 minutes
-
 
 async def _store_state(provider: str, extra: dict | None = None) -> str:
-    """Generate and store an OAuth state parameter in Redis."""
-    state = secrets.token_urlsafe(32)
-    payload = {
-        "provider": provider,
-        "created_at": datetime.utcnow().isoformat(),
-        **(extra or {}),
-    }
-    await cache.set(f"oauth_state:{state}", json.dumps(payload), ttl=_OAUTH_STATE_TTL)
-    return state
+    """Thin wrapper — converts ValueError → HTTPException for browser redirect flows."""
+    return await store_oauth_state(provider, extra)
 
 
 async def _pop_state(state: str, provider: str) -> dict:
-    """Retrieve and consume an OAuth state from Redis. Raises on invalid."""
-    raw = await cache.get(f"oauth_state:{state}")
-    await cache.delete(f"oauth_state:{state}")
-    if not raw:
+    """Thin wrapper — converts ValueError → HTTPException for browser redirect flows."""
+    try:
+        return await pop_oauth_state(state, provider)
+    except ValueError:
         raise HTTPException(400, "Invalid or expired OAuth state — please try again")
-    data = json.loads(raw)
-    if data.get("provider") != provider:
-        raise HTTPException(400, "Invalid or expired OAuth state — please try again")
-    return data
 
 
 def _error_redirect(message: str) -> RedirectResponse:
