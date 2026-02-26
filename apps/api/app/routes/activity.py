@@ -6,7 +6,7 @@ Activity feed, audit log, and usage analytics.
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from app.auth import get_current_user, CurrentUser
-from app.database import async_session, ChatMessage, Conversation
+from app.database import async_session, ChatMessage, Conversation, Integration
 from app.middleware import AuditTrail
 
 router = APIRouter()
@@ -72,9 +72,24 @@ async def get_conversation_analytics(current_user: CurrentUser = Depends(get_cur
 @router.get("/analytics/integrations")
 async def get_integration_analytics(current_user: CurrentUser = Depends(get_current_user)):
     """Get integration usage analytics."""
+    async with async_session() as session:
+        result = await session.execute(
+            select(Integration).where(Integration.user_id == current_user.user_id)
+        )
+        integrations = result.scalars().all()
+
+    active = [i for i in integrations if i.status == "connected"]
+    by_category: dict[str, int] = {}
+    for i in integrations:
+        cat = i.category or "other"
+        by_category[cat] = by_category.get(cat, 0) + 1
+
     return {
-        "total_integrations": 0,
-        "active_integrations": [],
-        "api_calls_by_integration": {},
+        "total_integrations": len(integrations),
+        "active_integrations": [
+            {"id": i.id, "type": i.type, "name": i.name, "category": i.category}
+            for i in active
+        ],
+        "integrations_by_category": by_category,
         "period": "all_time",
     }

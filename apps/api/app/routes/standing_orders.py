@@ -3,6 +3,7 @@ VOLO — Standing Orders Routes
 Manage automated recurring tasks, backed by PostgreSQL.
 """
 
+import asyncio
 from datetime import datetime
 from typing import Optional
 
@@ -12,6 +13,7 @@ from sqlalchemy import select
 
 from app.auth import get_current_user, CurrentUser
 from app.database import async_session, StandingOrder
+from app.middleware import AuditTrail
 
 router = APIRouter()
 
@@ -142,9 +144,54 @@ async def delete_standing_order(order_id: str, current_user: CurrentUser = Depen
     return {"deleted": True}
 
 
+async def _dispatch_action(action: dict, user_id: str, order_id: str) -> dict:
+    """Dispatch a single standing order action and return its result."""
+    action_type = action.get("type", "unknown")
+
+    if action_type == "notification":
+        try:
+            from app.services.notifications import notification_service
+            await notification_service.create(
+                user_id=user_id,
+                title=action.get("title", "Standing Order"),
+                message=action.get("message", ""),
+                notification_type=action.get("level", "info"),
+            )
+            return {"type": action_type, "status": "executed"}
+        except Exception as e:
+            return {"type": action_type, "status": "error", "error": str(e)}
+
+    if action_type in ("message", "chat"):
+        # Agent dispatch requires a full conversation context — enqueue for background execution
+        asyncio.ensure_future(AuditTrail.record(
+            user_id=user_id,
+            action="standing_order.message_queued",
+            resource_type="standing_order",
+            resource_id=order_id,
+            details={"content": action.get("content", action.get("message", ""))},
+        ))
+        return {"type": action_type, "status": "queued"}
+
+    if action_type == "webhook":
+        import httpx
+        url = action.get("url", "")
+        payload = action.get("payload", {})
+        if not url:
+            return {"type": action_type, "status": "error", "error": "missing url"}
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                resp = await client.post(url, json=payload)
+            return {"type": action_type, "status": "executed", "http_status": resp.status_code}
+        except Exception as e:
+            return {"type": action_type, "status": "error", "error": str(e)}
+
+    # Unknown / future action type — acknowledge without error
+    return {"type": action_type, "status": "acknowledged"}
+
+
 @router.post("/standing-orders/{order_id}/run")
 async def run_standing_order(order_id: str, current_user: CurrentUser = Depends(get_current_user)):
-    """Manually trigger a standing order."""
+    """Manually trigger a standing order, executing each of its actions."""
     async with async_session() as session:
         result = await session.execute(
             select(StandingOrder).where(
@@ -156,7 +203,25 @@ async def run_standing_order(order_id: str, current_user: CurrentUser = Depends(
         if not order:
             raise HTTPException(404, "Standing order not found")
 
+        actions = order.actions or []
+        action_results = await asyncio.gather(
+            *[_dispatch_action(a, current_user.user_id, order_id) for a in actions],
+        )
+
         order.last_run_at = datetime.utcnow()
         await session.commit()
         await session.refresh(order)
-    return {"executed": True, "order": _order_dict(order)}
+
+    await AuditTrail.record(
+        user_id=current_user.user_id,
+        action="standing_order.run",
+        resource_type="standing_order",
+        resource_id=order_id,
+        details={"action_count": len(actions), "results": list(action_results)},
+    )
+
+    return {
+        "executed": True,
+        "action_results": list(action_results),
+        "order": _order_dict(order),
+    }

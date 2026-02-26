@@ -66,55 +66,29 @@ class YouTubeService:
             }
 
     async def get_transcript(self, url_or_id: str) -> Optional[str]:
-        """Get video transcript/captions."""
+        """Get video transcript/captions via youtube-transcript-api (no auth required)."""
+        import asyncio
+        from youtube_transcript_api import YouTubeTranscriptApi, NoTranscriptFound, TranscriptsDisabled
+
         video_id = self._extract_video_id(url_or_id)
 
-        if self.access_token:
-            async with httpx.AsyncClient() as client:
-                # List available captions
-                resp = await client.get(
-                    f"https://www.googleapis.com/youtube/v3/captions"
-                    f"?part=snippet&videoId={video_id}",
-                    headers=self.headers,
-                )
-                if resp.status_code == 200:
-                    data = resp.json()
-                    captions = data.get("items", [])
-                    # Prefer English, then auto-generated
-                    for cap in captions:
-                        lang = cap["snippet"].get("language", "")
-                        if lang.startswith("en"):
-                            # Download caption track
-                            cap_id = cap["id"]
-                            dl_resp = await client.get(
-                                f"https://www.googleapis.com/youtube/v3/captions/{cap_id}",
-                                headers=self.headers,
-                            )
-                            if dl_resp.status_code == 200:
-                                return dl_resp.text
-
-        # Fallback: try fetching from a transcript service
         try:
-            async with httpx.AsyncClient() as client:
-                resp = await client.get(
-                    f"https://www.youtube.com/watch?v={video_id}",
-                    headers={"User-Agent": "Mozilla/5.0"},
-                    timeout=10.0,
-                )
-                # Try to extract from page source (basic approach)
-                text = resp.text
-                # Look for timedtext captions URL
-                match = re.search(r'"captionTracks":\[{"baseUrl":"([^"]+)"', text)
-                if match:
-                    caption_url = match.group(1).replace("\\u0026", "&")
-                    cap_resp = await client.get(caption_url)
-                    if cap_resp.status_code == 200:
-                        # Parse XML captions
-                        transcript_parts = re.findall(r'<text[^>]*>(.*?)</text>', cap_resp.text)
-                        return " ".join(
-                            part.replace("&amp;", "&").replace("&lt;", "<").replace("&gt;", ">").replace("&#39;", "'").replace("&quot;", '"')
-                            for part in transcript_parts
-                        )
+            # Run the synchronous library in a thread so we don't block the event loop
+            transcript_list = await asyncio.to_thread(
+                YouTubeTranscriptApi.get_transcript, video_id, languages=["en", "en-US", "en-GB"]
+            )
+            return " ".join(part["text"] for part in transcript_list)
+        except (NoTranscriptFound, TranscriptsDisabled):
+            pass
+        except Exception:
+            pass
+
+        # Fallback: try any available language
+        try:
+            transcripts = await asyncio.to_thread(YouTubeTranscriptApi.list_transcripts, video_id)
+            transcript = await asyncio.to_thread(transcripts.find_transcript, ["en"])
+            fetched = await asyncio.to_thread(transcript.fetch)
+            return " ".join(part["text"] for part in fetched)
         except Exception:
             pass
 
