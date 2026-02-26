@@ -50,7 +50,7 @@ class AgentOrchestrator:
                 return None
             try:
                 import anthropic
-                self._client = anthropic.Anthropic(api_key=api_key)
+                self._client = anthropic.AsyncAnthropic(api_key=api_key)
             except Exception:
                 self._client = None
         return self._client
@@ -64,7 +64,7 @@ class AgentOrchestrator:
                 return None
             try:
                 import openai
-                self._openai_client = openai.OpenAI(api_key=api_key)
+                self._openai_client = openai.AsyncOpenAI(api_key=api_key)
             except Exception:
                 self._openai_client = None
         return self._openai_client
@@ -138,12 +138,13 @@ class AgentOrchestrator:
             round_count += 1
 
             try:
-                response = self.client.messages.create(
+                response = await self.client.messages.create(
                     model=self.model,
                     max_tokens=4096,
                     system=system_prompt,
                     messages=messages,
                     tools=tools if tools else None,
+                    timeout=30.0,
                 )
             except Exception as e:
                 # Try OpenAI fallback on Anthropic failure
@@ -298,11 +299,12 @@ class AgentOrchestrator:
 
         try:
             model = os.getenv("OPENAI_MODEL", "gpt-4o")
-            response = self.openai_client.chat.completions.create(
+            response = await self.openai_client.chat.completions.create(
                 model=model,
                 messages=openai_messages,
                 tools=openai_tools if openai_tools else None,
                 max_tokens=4096,
+                timeout=30.0,
             )
 
             choice = response.choices[0]
