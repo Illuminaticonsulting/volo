@@ -4,6 +4,7 @@ The brain of Volo. Routes user intent to specialized sub-agents,
 manages tool calls, memory, multi-step planning, guardrails, and context windows.
 """
 
+import asyncio
 import os
 import json
 from typing import AsyncGenerator
@@ -156,17 +157,15 @@ class AgentOrchestrator:
                 yield {"content": f"\n\n*Error communicating with AI model: {str(e)}*"}
                 return
 
-            has_tool_use = False
             text_content = ""
+            pending_tools = []   # blocks that passed guardrails and need execution
             tool_results = []
 
             for block in response.content:
                 if block.type == "text":
                     text_content += block.text
                 elif block.type == "tool_use":
-                    has_tool_use = True
-
-                    # Check guardrails before executing
+                    # Check guardrails (fast, keep sequential)
                     check = guardrails.check_action(
                         tool_name=block.name,
                         parameters=block.input,
@@ -174,7 +173,6 @@ class AgentOrchestrator:
                     )
 
                     if not check["allowed"]:
-                        # Tool blocked by guardrails
                         yield {
                             "tool_call": {
                                 "id": block.id,
@@ -212,7 +210,7 @@ class AgentOrchestrator:
                         })
                         continue
 
-                    # Execute the tool
+                    # Queue for parallel execution
                     yield {
                         "tool_call": {
                             "id": block.id,
@@ -220,28 +218,35 @@ class AgentOrchestrator:
                             "status": "running",
                         }
                     }
+                    pending_tools.append(block)
 
+            # Execute all approved tools concurrently with a 30s per-tool timeout
+            if pending_tools:
+                async def _run_tool(blk):
                     try:
-                        result = await self.tool_registry.execute(
-                            block.name, **block.input
+                        return await asyncio.wait_for(
+                            self.tool_registry.execute(blk.name, **blk.input),
+                            timeout=30.0,
                         )
-                    except Exception as e:
-                        result = {"error": str(e)}
+                    except asyncio.TimeoutError:
+                        return {"error": f"Tool '{blk.name}' timed out after 30s"}
+                    except Exception as exc:
+                        return {"error": str(exc)}
 
-                    # Record for spending tracking
-                    guardrails.record_action(block.name, block.input)
+                results = await asyncio.gather(*[_run_tool(b) for b in pending_tools])
 
+                for blk, result in zip(pending_tools, results):
+                    guardrails.record_action(blk.name, blk.input)
                     yield {
                         "tool_call": {
-                            "id": block.id,
-                            "name": block.name,
+                            "id": blk.id,
+                            "name": blk.name,
                             "status": "completed",
                         }
                     }
-
                     tool_results.append({
                         "type": "tool_result",
-                        "tool_use_id": block.id,
+                        "tool_use_id": blk.id,
                         "content": json.dumps(result) if isinstance(result, dict) else str(result),
                     })
 
@@ -255,7 +260,7 @@ class AgentOrchestrator:
                         chunk = " " + chunk
                     yield {"content": chunk}
 
-            if has_tool_use:
+            if tool_results:
                 messages.append({
                     "role": "assistant",
                     "content": [
