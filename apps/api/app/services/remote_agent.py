@@ -47,7 +47,7 @@ class AgentConnection:
             "timestamp": datetime.utcnow().isoformat(),
         }
 
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         future = loop.create_future()
         self.pending_commands[command_id] = future
 
@@ -96,19 +96,30 @@ class RemoteAgentManager:
 
     def generate_agent_key(self, user_id: str, github_username: str = "") -> str:
         key = f"volo-agent-{uuid.uuid4().hex[:16]}"
-        self.agent_keys[user_id] = {
+        info = {
             "key": key,
             "github_username": github_username,
             "created_at": datetime.utcnow().isoformat(),
         }
+        self.agent_keys[user_id] = info
         self.user_agents[user_id] = key
-        # Fire-and-forget DB save
+        # Persist to DB + Redis (fire-and-forget)
         asyncio.ensure_future(self._save_key_to_db(user_id, key, github_username))
+        asyncio.ensure_future(self._cache_agent_key(user_id, info))
         return key
 
     def get_agent_key(self, user_id: str) -> Optional[str]:
         info = self.agent_keys.get(user_id)
         return info["key"] if info else None
+
+    async def _cache_agent_key(self, user_id: str, info: dict):
+        """Write agent key to Redis so other workers can read it."""
+        try:
+            from app.services.cache import cache as _cache_svc
+            import json
+            await _cache_svc.set(f"agent_key:{user_id}", json.dumps(info), ttl=86400 * 30)
+        except Exception:
+            pass  # Redis unavailable — process-local dict is the fallback
 
     async def _save_key_to_db(self, user_id: str, key: str, github_username: str = ""):
         """Persist agent key to Integration table."""
@@ -145,7 +156,9 @@ class RemoteAgentManager:
             print(f"  Warning: failed to persist agent key: {e}")
 
     async def load_keys_from_db(self):
-        """Load all agent keys from DB on startup."""
+        """Warm process-local dict + Redis from DB on startup."""
+        import json
+        from app.services.cache import cache as _cache_svc
         try:
             async with async_session() as session:
                 result = await session.execute(
@@ -156,6 +169,11 @@ class RemoteAgentManager:
                         user_id = integration.user_id
                         self.agent_keys[user_id] = integration.config
                         self.user_agents[user_id] = integration.config["key"]
+                        await _cache_svc.set(
+                            f"agent_key:{user_id}",
+                            json.dumps(integration.config),
+                            ttl=86400 * 30,
+                        )
             print(f"  Agent keys loaded: {len(self.agent_keys)} users")
         except Exception as e:
             print(f"  Agent key load skipped: {e}")

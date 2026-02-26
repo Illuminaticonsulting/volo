@@ -1,6 +1,7 @@
 """
 VOLO — Google OAuth & Services Discovery
-DB-backed token storage with in-memory cache for fast sync access.
+DB-backed token storage with Redis cache (shared across all Gunicorn workers)
+and a short-lived process-local dict for zero-latency sync reads.
 """
 
 import httpx
@@ -10,6 +11,9 @@ from sqlalchemy import select
 
 from app.config import settings
 from app.database import async_session, Integration, User
+
+# Redis TTL slightly under 1 hour (tokens expire in 3600s)
+_REDIS_TOKEN_TTL = 3500
 
 GOOGLE_CLIENT_ID = settings.google_client_id
 GOOGLE_CLIENT_SECRET = settings.google_client_secret
@@ -107,7 +111,8 @@ class GoogleAuthService:
         return {}
 
     async def _save_tokens(self, user_id: str, tokens: dict, profile: dict):
-        """Persist Google tokens to DB and update cache."""
+        """Persist Google tokens to DB → Redis → local process cache."""
+        from app.services.cache import cache as _cache_svc
         config = {
             "access_token": tokens.get("access_token"),
             "refresh_token": tokens.get("refresh_token"),
@@ -143,12 +148,23 @@ class GoogleAuthService:
                 ))
             await session.commit()
 
+        # Propagate to Redis so all Gunicorn workers see the refreshed token
+        await _cache_svc.set_json(f"google_token:{user_id}", config, ttl=_REDIS_TOKEN_TTL)
+        # Keep process-local dict for zero-latency sync reads (get_access_token)
         self._cache[user_id] = config
 
     async def _load_tokens(self, user_id: str) -> Optional[dict]:
-        """Load from cache, falling back to DB."""
+        """Load tokens: process cache → Redis → DB (lazily populates caches)."""
+        from app.services.cache import cache as _cache_svc
+
         if user_id in self._cache:
             return self._cache[user_id]
+
+        # Redis is shared across workers — check before hitting the DB
+        redis_data = await _cache_svc.get_json(f"google_token:{user_id}")
+        if redis_data:
+            self._cache[user_id] = redis_data
+            return redis_data
 
         async with async_session() as session:
             result = await session.execute(
@@ -159,8 +175,11 @@ class GoogleAuthService:
             )
             integration = result.scalar_one_or_none()
             if integration and integration.config:
-                self._cache[user_id] = integration.config
-                return integration.config
+                config = integration.config
+                # Backfill caches
+                await _cache_svc.set_json(f"google_token:{user_id}", config, ttl=_REDIS_TOKEN_TTL)
+                self._cache[user_id] = config
+                return config
         return None
 
     async def discover_services(self, access_token: str) -> list[dict]:
@@ -230,7 +249,8 @@ class GoogleAuthService:
         return cached.get("profile") if cached else None
 
     async def load_from_db(self):
-        """Load all Google integrations into cache on startup."""
+        """Warm all caches (Redis + process-local) from DB on startup."""
+        from app.services.cache import cache as _cache_svc
         try:
             async with async_session() as session:
                 result = await session.execute(
@@ -239,6 +259,11 @@ class GoogleAuthService:
                 for integration in result.scalars().all():
                     if integration.config:
                         self._cache[integration.user_id] = integration.config
+                        await _cache_svc.set_json(
+                            f"google_token:{integration.user_id}",
+                            integration.config,
+                            ttl=_REDIS_TOKEN_TTL,
+                        )
             print(f"  Google tokens loaded: {len(self._cache)} users")
         except Exception as e:
             print(f"  Google token load skipped: {e}")
