@@ -98,13 +98,16 @@ async def create_conversation(body: CreateConversationRequest, current_user: Cur
 
 
 @router.get("/conversations/{conversation_id}")
-async def get_conversation(conversation_id: str, current_user: CurrentUser = Depends(get_current_user)):
-    """Get a conversation with its messages."""
+async def get_conversation(
+    conversation_id: str,
+    msg_limit: int = Query(100, ge=1, le=500),
+    msg_offset: int = Query(0, ge=0),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Get a conversation with paginated messages."""
     async with async_session() as session:
         result = await session.execute(
-            select(Conversation)
-            .options(selectinload(Conversation.messages))
-            .where(
+            select(Conversation).where(
                 Conversation.id == conversation_id,
                 Conversation.user_id == current_user.user_id,
             )
@@ -114,9 +117,20 @@ async def get_conversation(conversation_id: str, current_user: CurrentUser = Dep
         if not conv:
             raise HTTPException(status_code=404, detail="Conversation not found")
 
+        msgs_result = await session.execute(
+            select(ChatMessage)
+            .where(ChatMessage.conversation_id == conversation_id)
+            .order_by(ChatMessage.created_at)
+            .offset(msg_offset)
+            .limit(msg_limit)
+        )
+        messages = msgs_result.scalars().all()
+
         return {
             **_conv_dict(conv),
-            "messages": [_msg_dict(m) for m in conv.messages],
+            "messages": [_msg_dict(m) for m in messages],
+            "msg_limit": msg_limit,
+            "msg_offset": msg_offset,
         }
 
 

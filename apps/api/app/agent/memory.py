@@ -89,10 +89,18 @@ class MemoryManager:
         self,
         user_id: str = "dev-user",
         category: Optional[str] = None,
+        limit: int = 200,
+        offset: int = 0,
     ) -> list[dict]:
-        """Get all memories for a user."""
+        """Get memories for a user with pagination (default page size 200)."""
         async with async_session() as session:
-            q = select(Memory).where(Memory.user_id == user_id)
+            q = (
+                select(Memory)
+                .where(Memory.user_id == user_id)
+                .order_by(Memory.created_at.desc())
+                .offset(offset)
+                .limit(limit)
+            )
             if category:
                 q = q.where(Memory.category == category)
 

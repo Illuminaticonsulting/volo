@@ -6,7 +6,7 @@ Backed by PostgreSQL — memories survive restarts.
 
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, Query
 from pydantic import BaseModel
 from typing import Optional
 
@@ -24,12 +24,23 @@ class MemoryCreate(BaseModel):
 
 
 @router.get("/memory")
-async def list_memories(category: Optional[str] = None, current_user: CurrentUser = Depends(get_current_user)):
-    """List all memories the agent has about the user."""
-    memories = await memory_manager.get_all(user_id=current_user.user_id, category=category)
+async def list_memories(
+    category: Optional[str] = None,
+    limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """List memories the agent has about the user (paginated)."""
+    memories = await memory_manager.get_all(
+        user_id=current_user.user_id,
+        category=category,
+        limit=limit,
+        offset=offset,
+    )
     return {
         "memories": memories,
-        "total": len(memories),
+        "limit": limit,
+        "offset": offset,
     }
 
 
@@ -78,9 +89,12 @@ async def search_memories(q: str, category: Optional[str] = None, limit: int = 1
 
 
 @router.get("/memory/export")
-async def export_memories(current_user: CurrentUser = Depends(get_current_user)):
-    """Export all memories as JSON. Data portability."""
-    memories = await memory_manager.get_all(user_id=current_user.user_id)
+async def export_memories(
+    limit: int = Query(10_000, ge=1, le=50_000),
+    current_user: CurrentUser = Depends(get_current_user),
+):
+    """Export memories as JSON (up to 50 000 records). Data portability."""
+    memories = await memory_manager.get_all(user_id=current_user.user_id, limit=limit)
     return {
         "memories": memories,
         "exported_at": datetime.now(timezone.utc).isoformat(),
