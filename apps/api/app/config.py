@@ -79,6 +79,11 @@ class Settings(BaseSettings):
     # Authenticator Vault
     volo_vault_key: str = ""
 
+    # Credential encryption key (Fernet, 32-byte URL-safe base64).
+    # Generate with: python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"
+    # If unset, integration credentials are stored unencrypted (not suitable for production).
+    credentials_key: str = ""
+
     # White Label
     default_tenant_id: str = "volo-default"
     default_tenant_name: str = "Volo"

@@ -4,7 +4,9 @@ Defines all tools available to the agent with LIVE execution.
 Each tool is a capability the agent can invoke during conversation.
 """
 
+import asyncio
 from typing import Any, Callable, Optional
+from app.utils.crypto import decrypt_config
 from app.services.github import GitHubService
 from app.services.trading import TradingService
 from app.services.email import EmailService
@@ -677,26 +679,33 @@ class ToolRegistry:
     # FINANCE / PLAID HANDLERS
     # =========================================================================
 
-    async def _handle_finance_get_balances(self, **kwargs) -> dict:
-        # Try real Plaid data first, fall back to demo
-        from app.database import SessionLocal
-        from app.models import Integration
+    async def _get_plaid_access_token(self) -> str | None:
+        """Fetch and decrypt the Plaid access token from the integrations table."""
+        from app.database import async_session
+        from app.database import Integration as IntegrationModel
+        from sqlalchemy import select
         try:
-            async with SessionLocal() as db:
-                from sqlalchemy import select
+            async with async_session() as db:
                 result = await db.execute(
-                    select(Integration).where(
-                        Integration.type == "plaid"
+                    select(IntegrationModel).where(
+                        IntegrationModel.type == "plaid"
                     ).limit(1)
                 )
                 integration = result.scalar_one_or_none()
                 if integration and integration.config:
-                    access_token = integration.config.get("access_token")
-                    if access_token:
-                        return await plaid_service.get_balances(access_token)
+                    cfg = decrypt_config(integration.config)
+                    return cfg.get("access_token")
         except Exception:
             pass
-        # Return demo data
+        return None
+
+    async def _handle_finance_get_balances(self, **kwargs) -> dict:
+        access_token = await self._get_plaid_access_token()
+        if access_token:
+            try:
+                return await plaid_service.get_balances(access_token)
+            except Exception:
+                pass
         demo = plaid_service.get_demo_data()
         return {
             "accounts": demo["accounts"],
@@ -708,74 +717,43 @@ class ToolRegistry:
     async def _handle_finance_get_transactions(self, **kwargs) -> dict:
         days = min(kwargs.get("days", 30), 90)
         count = min(kwargs.get("count", 20), 100)
-        from app.database import SessionLocal
-        from app.models import Integration
-        try:
-            async with SessionLocal() as db:
-                from sqlalchemy import select
-                result = await db.execute(
-                    select(Integration).where(
-                        Integration.type == "plaid"
-                    ).limit(1)
-                )
-                integration = result.scalar_one_or_none()
-                if integration and integration.config:
-                    access_token = integration.config.get("access_token")
-                    if access_token:
-                        return await plaid_service.get_transactions(access_token, days=days, count=count)
-        except Exception:
-            pass
+        access_token = await self._get_plaid_access_token()
+        if access_token:
+            try:
+                return await plaid_service.get_transactions(access_token, days=days, count=count)
+            except Exception:
+                pass
         demo = plaid_service.get_demo_data()
         return {"transactions": demo["transactions"][:count], "is_demo": True}
 
     async def _handle_finance_spending_breakdown(self, **kwargs) -> dict:
         days = min(kwargs.get("days", 30), 90)
-        from app.database import SessionLocal
-        from app.models import Integration
-        try:
-            async with SessionLocal() as db:
-                from sqlalchemy import select
-                result = await db.execute(
-                    select(Integration).where(
-                        Integration.type == "plaid"
-                    ).limit(1)
-                )
-                integration = result.scalar_one_or_none()
-                if integration and integration.config:
-                    access_token = integration.config.get("access_token")
-                    if access_token:
-                        return await plaid_service.get_spending_breakdown(access_token, days=days)
-        except Exception:
-            pass
+        access_token = await self._get_plaid_access_token()
+        if access_token:
+            try:
+                return await plaid_service.get_spending_breakdown(access_token, days=days)
+            except Exception:
+                pass
         demo = plaid_service.get_demo_data()
         return {**demo["spending"], "is_demo": True}
 
     async def _handle_finance_overview(self, **kwargs) -> dict:
-        from app.database import SessionLocal
-        from app.models import Integration
-        try:
-            async with SessionLocal() as db:
-                from sqlalchemy import select
-                result = await db.execute(
-                    select(Integration).where(
-                        Integration.type == "plaid"
-                    ).limit(1)
+        access_token = await self._get_plaid_access_token()
+        if access_token:
+            try:
+                balances, spending, txns = await asyncio.gather(
+                    plaid_service.get_balances(access_token),
+                    plaid_service.get_spending_breakdown(access_token),
+                    plaid_service.get_transactions(access_token, count=10),
                 )
-                integration = result.scalar_one_or_none()
-                if integration and integration.config:
-                    access_token = integration.config.get("access_token")
-                    if access_token:
-                        balances = await plaid_service.get_balances(access_token)
-                        spending = await plaid_service.get_spending_breakdown(access_token)
-                        txns = await plaid_service.get_transactions(access_token, count=10)
-                        return {
-                            **balances,
-                            "spending": spending,
-                            "recent_transactions": txns.get("transactions", [])[:10],
-                            "is_demo": False,
-                        }
-        except Exception:
-            pass
+                return {
+                    **balances,
+                    "spending": spending,
+                    "recent_transactions": txns.get("transactions", [])[:10],
+                    "is_demo": False,
+                }
+            except Exception:
+                pass
         return {**plaid_service.get_demo_data(), "is_demo": True}
 
     # =========================================================================

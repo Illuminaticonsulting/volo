@@ -13,6 +13,7 @@ from sqlalchemy import select
 
 from app.auth import get_current_user, CurrentUser
 from app.database import async_session, Integration
+from app.utils.crypto import encrypt_config, safe_config_for_response
 
 router = APIRouter()
 
@@ -157,6 +158,8 @@ async def list_integrations(current_user: CurrentUser = Depends(get_current_user
                 "status": i.status,
                 "last_sync_at": i.last_sync_at.isoformat() if i.last_sync_at else None,
                 "created_at": i.created_at.isoformat() if i.created_at else None,
+                # Return field names only so callers know what is set, not the values
+                "configured_fields": list(safe_config_for_response(i.config or {}).keys()),
             }
             for i in result.scalars().all()
         ]
@@ -187,8 +190,11 @@ async def connect_integration(integration: IntegrationConnect, current_user: Cur
         )
         existing = result.scalar_one_or_none()
 
+        raw_config = {**integration.credentials, **(integration.config or {})}
+        encrypted = encrypt_config(raw_config)
+
         if existing:
-            existing.config = {**integration.credentials, **(integration.config or {})}
+            existing.config = encrypted
             existing.status = "connected"
             existing.last_sync_at = datetime.utcnow()
         else:
@@ -198,7 +204,7 @@ async def connect_integration(integration: IntegrationConnect, current_user: Cur
                 category=info.get("category", "other"),
                 name=info.get("name", integration.type),
                 status="connected",
-                config={**integration.credentials, **(integration.config or {})},
+                config=encrypted,
             ))
 
         await session.commit()
