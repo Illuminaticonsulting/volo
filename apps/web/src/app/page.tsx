@@ -11,6 +11,7 @@ import { MobileBottomNav } from '@/components/layout/MobileBottomNav';
 import { useAppStore } from '@/stores/appStore';
 import { useAuthStore } from '@/stores/authStore';
 import { useChatStore } from '@/stores/chatStore';
+import { initApiUrl } from '@/lib/api';
 import { toast } from 'sonner';
 
 // Lazy-loaded page components (code-split)
@@ -47,6 +48,12 @@ export default function HomePage() {
   const { currentPage, sidebarOpen, commandPaletteOpen, toggleSidebar, setCommandPaletteOpen, setSidebarOpen } = useAppStore();
   const { isAuthenticated, isLoading, user, login } = useAuthStore();
   const [showOnboarding, setShowOnboarding] = useState(false);
+
+  // Resolve runtime API URL from the Next.js server-side config route.
+  // Must run before any backend API calls are made.
+  useEffect(() => {
+    initApiUrl();
+  }, []);
 
   // Handle OAuth callback (e.g. Twitter redirect with ?auth_token=...&provider=twitter)
   useEffect(() => {

@@ -1,9 +1,34 @@
 /**
  * Centralized API client for Volo
- * All API calls go through here — no more hardcoded URLs
+ *
+ * The API base URL is no longer baked into the bundle at build time.
+ * Instead, initApiUrl() fetches /api/config (a Next.js server-side route)
+ * at app mount, which reads process.env.API_URL at runtime. This lets the
+ * same Docker image run in any environment without a rebuild.
+ *
+ * Call initApiUrl() once in the root component useEffect before any other
+ * API calls. Until it resolves, requests fall back to http://localhost:8000.
  */
 
-const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:8000';
+// Module-level URL — written once by initApiUrl(), read by every request.
+let _apiUrl = 'http://localhost:8000';
+
+/**
+ * Fetch the runtime API URL from the Next.js config route and store it.
+ * Safe to call multiple times — only the first call performs the fetch.
+ */
+export async function initApiUrl(): Promise<void> {
+  if (typeof window === 'undefined') return;
+  try {
+    const res = await fetch('/api/config');
+    if (res.ok) {
+      const { apiUrl } = await res.json();
+      if (apiUrl) _apiUrl = apiUrl;
+    }
+  } catch {
+    // Network unavailable during init — keep localhost default.
+  }
+}
 
 /** Get auth token from persisted Zustand store without importing the store (avoids circular deps) */
 function getAuthToken(): string | null {
@@ -26,12 +51,6 @@ interface RequestOptions {
 }
 
 class ApiClient {
-  private baseUrl: string;
-
-  constructor(baseUrl: string) {
-    this.baseUrl = baseUrl;
-  }
-
   private async request<T = unknown>(endpoint: string, options: RequestOptions = {}): Promise<T> {
     const { method = 'GET', body, headers = {}, signal } = options;
 
@@ -50,7 +69,7 @@ class ApiClient {
       config.body = JSON.stringify(body);
     }
 
-    const res = await fetch(`${this.baseUrl}${endpoint}`, config);
+    const res = await fetch(`${_apiUrl}${endpoint}`, config);
 
     if (!res.ok) {
       // Auto-logout on 401 Unauthorized
@@ -94,7 +113,7 @@ class ApiClient {
   /** Get the raw Response for streaming endpoints */
   async stream(endpoint: string, body?: unknown, signal?: AbortSignal): Promise<Response> {
     const token = getAuthToken();
-    const res = await fetch(`${this.baseUrl}${endpoint}`, {
+    const res = await fetch(`${_apiUrl}${endpoint}`, {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
@@ -108,9 +127,11 @@ class ApiClient {
   }
 
   get url() {
-    return this.baseUrl;
+    return _apiUrl;
   }
 }
 
-export const api = new ApiClient(API_URL);
-export { API_URL };
+export const api = new ApiClient();
+
+/** Current resolved API URL — updated by initApiUrl(). */
+export { _apiUrl as API_URL };
