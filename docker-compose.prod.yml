@@ -2,7 +2,8 @@
 # docker-compose.prod.yml
 #
 # Uses system nginx as reverse proxy (shared with trading bot)
-# Deploy: docker compose -f docker-compose.prod.yml up -d --build
+# Images are built by CI and pushed to GHCR — never built on the server.
+# Deploy is triggered automatically on push to main via GitHub Actions.
 # Domain: volo.kingpinstrategies.com
 # ────────────────────────────────────────────────────────────
 
@@ -75,9 +76,7 @@ services:
 
   # ── API (FastAPI) ──────────────────────────────
   api:
-    build:
-      context: .
-      dockerfile: apps/api/Dockerfile.prod
+    image: ghcr.io/illuminaticonsulting/volo-api:${IMAGE_TAG:-latest}
     container_name: volo-api
     restart: unless-stopped
     dns:
@@ -104,9 +103,7 @@ services:
 
   # ── Web (Next.js) ─────────────────────────────
   web:
-    build:
-      context: ./apps/web
-      dockerfile: Dockerfile.prod
+    image: ghcr.io/illuminaticonsulting/volo-web:${IMAGE_TAG:-latest}
     container_name: volo-web
     restart: unless-stopped
     dns:
