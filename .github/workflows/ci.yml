@@ -192,4 +192,3 @@ jobs:
           username: ${{ secrets.DO_DEPLOY_USER }}
           key: ${{ secrets.DO_DEPLOY_KEY }}
           script: echo "deploy"
-          script_stop: true
