@@ -22,8 +22,8 @@ def _fernet():
     try:
         from cryptography.fernet import Fernet
         return Fernet(key.encode() if isinstance(key, str) else key)
-    except Exception as exc:
-        logger.warning("Invalid credentials_key — integration credentials will not be encrypted: %s", exc)
+    except Exception:
+        logger.warning("Invalid CREDENTIALS_KEY — cannot initialize encryption", exc_info=True)
         return None
 
 
@@ -43,8 +43,8 @@ def encrypt_config(config: dict) -> dict:
     try:
         token = f.encrypt(json.dumps(config).encode()).decode()
         return {_ENC_FIELD: token}
-    except Exception as exc:
-        logger.error("Failed to encrypt credentials: %s", exc)
+    except Exception:
+        logger.exception("Encryption error for integration data")
         return config
 
 
@@ -65,8 +65,8 @@ def decrypt_config(config: dict) -> dict:
     try:
         raw = f.decrypt(config[_ENC_FIELD].encode())
         return json.loads(raw)
-    except Exception as exc:
-        logger.error("Failed to decrypt credentials: %s", exc)
+    except Exception:
+        logger.exception("Decryption error for integration data")
         return {}
 
 

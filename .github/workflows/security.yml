@@ -146,10 +146,16 @@ jobs:
             sleep 2
           done
 
+      # ZAP runs as a non-root user inside its container; it needs write access
+      # to the workspace directory (mounted as /zap/wrk/) to generate its plan file.
+      - name: Set workspace permissions for ZAP
+        run: chmod -R 777 ${{ github.workspace }}
+
       # ZAP baseline scan: passive-only, no active attacks.
       # Checks for missing security headers, insecure cookies, info disclosure, etc.
       # fail_action: false — findings are reported but do not fail CI on first run.
       # Change to true once you have triaged and resolved the initial findings.
+      # The action uploads the report artifact itself via artifact_name below.
       - name: OWASP ZAP Baseline Scan
         uses: zaproxy/action-baseline@v0.12.0
         with:
@@ -157,11 +163,3 @@ jobs:
           fail_action: false
           allow_issue_writing: false
           artifact_name: zap-report
-
-      - name: Upload ZAP report
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: zap-report
-          path: report_html.html
-          retention-days: 30
