@@ -12,7 +12,7 @@ interface TooltipProps {
 
 export function Tooltip({ content, children, side = 'top', delay = 300 }: TooltipProps) {
   const [visible, setVisible] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout>>();
+  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const triggerRef = useRef<HTMLDivElement>(null);
 
   const show = () => {
@@ -20,12 +20,14 @@ export function Tooltip({ content, children, side = 'top', delay = 300 }: Toolti
   };
 
   const hide = () => {
-    clearTimeout(timerRef.current);
+    if (timerRef.current !== null) clearTimeout(timerRef.current);
     setVisible(false);
   };
 
   useEffect(() => {
-    return () => clearTimeout(timerRef.current);
+    return () => {
+      if (timerRef.current !== null) clearTimeout(timerRef.current);
+    };
   }, []);
 
   const positionClasses = {
