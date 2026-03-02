@@ -19,7 +19,7 @@ alembic>=1.13.0
 pgvector>=0.2.5
 
 # Auth & Security
-python-jose[cryptography]>=3.3.0
+PyJWT>=2.8.0
 bcrypt>=4.0.0
 cryptography>=42.0.0
 

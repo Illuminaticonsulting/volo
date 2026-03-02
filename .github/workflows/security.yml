@@ -122,6 +122,7 @@ jobs:
           DATABASE_URL: postgresql+asyncpg://volo:volo@localhost:5432/volo_zap
           JWT_SECRET: zap-ci-secret
           APP_SECRET_KEY: zap-ci-secret
+          PYTHONPATH: .
         run: alembic upgrade head
 
       - name: Start API

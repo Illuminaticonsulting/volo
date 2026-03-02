@@ -64,7 +64,7 @@ class RAGPipeline:
     ) -> dict:
         """Index a document for RAG retrieval."""
         if not doc_id:
-            doc_id = hashlib.md5(content.encode()).hexdigest()
+            doc_id = hashlib.md5(content.encode(), usedforsecurity=False).hexdigest()
 
         embedding = await self.embed_text(content)
 
