@@ -157,7 +157,7 @@ jobs:
       # Change to true once you have triaged and resolved the initial findings.
       # The action uploads the report artifact itself via artifact_name below.
       - name: OWASP ZAP Baseline Scan
-        uses: zaproxy/action-baseline@v0.12.0
+        uses: zaproxy/action-baseline@v0.15.0
         with:
           target: 'http://localhost:8000'
           fail_action: false
