@@ -462,10 +462,10 @@ class SocialOAuthService:
                         integration.config = new_config
                         await session.commit()
                 await cache.set(f"social_token:{user_id}:twitter", new_access, ttl=3600)
-                logger.info("Twitter token refreshed for user %s", user_id)
+                logger.info("Twitter session renewed for user %s", user_id)
                 return new_access
         except Exception:
-            logger.exception("Twitter token refresh error for user %s", user_id)
+            logger.exception("Twitter session renewal failed for user %s", user_id)
         return None
 
 
