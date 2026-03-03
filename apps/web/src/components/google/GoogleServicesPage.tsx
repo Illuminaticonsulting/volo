@@ -71,6 +71,8 @@ export function GoogleServicesPage() {
   const [loadingEvents, setLoadingEvents] = useState(false);
   const [summarizingEmail, setSummarizingEmail] = useState<string | null>(null);
   const [emailSummaries, setEmailSummaries] = useState<Record<string, string>>({});
+  const [gmailAuthError, setGmailAuthError] = useState(false);
+  const [calendarAuthError, setCalendarAuthError] = useState(false);
   const { t } = useTranslation();
 
   const fetchServices = useCallback(async () => {
@@ -100,12 +102,14 @@ export function GoogleServicesPage() {
 
   const fetchEmails = useCallback(async () => {
     setLoadingEmails(true);
+    setGmailAuthError(false);
     try {
       const data = await api.get<{ emails: GmailMessage[]; unread_count: number }>('/api/google/gmail/messages');
       setEmails(data.emails || []);
       setUnreadCount(data.unread_count || 0);
     } catch {
       setEmails([]);
+      setGmailAuthError(true);
     } finally {
       setLoadingEmails(false);
     }
@@ -113,11 +117,13 @@ export function GoogleServicesPage() {
 
   const fetchEvents = useCallback(async () => {
     setLoadingEvents(true);
+    setCalendarAuthError(false);
     try {
       const data = await api.get<{ events: CalendarEvent[]; count: number }>('/api/google/calendar/events');
       setEvents(data.events || []);
     } catch {
       setEvents([]);
+      setCalendarAuthError(true);
     } finally {
       setLoadingEvents(false);
     }
@@ -346,7 +352,22 @@ export function GoogleServicesPage() {
                 <RefreshCw className={cn('w-3.5 h-3.5', loadingEmails && 'animate-spin')} /> {t('common.refresh')}
               </button>
             </div>
-            {loadingEmails && emails.length === 0 ? (
+            {gmailAuthError ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-4 text-center">
+                <AlertCircle className="w-10 h-10 text-amber-400 opacity-80" />
+                <div>
+                  <p className="text-white font-medium">Gmail access not authorized</p>
+                  <p className="text-zinc-400 text-sm mt-1">You haven&apos;t granted Volo access to your Gmail account.</p>
+                </div>
+                <button
+                  onClick={handleGoogleSignIn}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-gray-800 rounded-xl font-medium text-sm hover:bg-gray-100 transition-colors shadow-lg"
+                >
+                  <LogIn className="w-4 h-4" />
+                  Authorize Gmail access
+                </button>
+              </div>
+            ) : loadingEmails && emails.length === 0 ? (
               <div className="space-y-2">
                 {Array.from({ length: 5 }).map((_, i) => (
                   <div key={i} className="h-16 rounded-xl bg-white/5 animate-pulse" />
@@ -434,7 +455,22 @@ export function GoogleServicesPage() {
                 <RefreshCw className={cn('w-3.5 h-3.5', loadingEvents && 'animate-spin')} /> {t('common.refresh')}
               </button>
             </div>
-            {loadingEvents && events.length === 0 ? (
+            {calendarAuthError ? (
+              <div className="flex flex-col items-center justify-center py-10 gap-4 text-center">
+                <AlertCircle className="w-10 h-10 text-amber-400 opacity-80" />
+                <div>
+                  <p className="text-white font-medium">Google Calendar access not authorized</p>
+                  <p className="text-zinc-400 text-sm mt-1">You haven&apos;t granted Volo access to your Google Calendar.</p>
+                </div>
+                <button
+                  onClick={handleGoogleSignIn}
+                  className="flex items-center gap-2 px-5 py-2.5 bg-white text-gray-800 rounded-xl font-medium text-sm hover:bg-gray-100 transition-colors shadow-lg"
+                >
+                  <LogIn className="w-4 h-4" />
+                  Authorize Calendar access
+                </button>
+              </div>
+            ) : loadingEvents && events.length === 0 ? (
               <div className="space-y-2">
                 {Array.from({ length: 3 }).map((_, i) => (
                   <div key={i} className="h-20 rounded-xl bg-white/5 animate-pulse" />

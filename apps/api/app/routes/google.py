@@ -102,7 +102,7 @@ async def get_gmail_messages(
     """Fetch recent Gmail messages for the authenticated user."""
     token = await _get_valid_token(current_user.user_id)
     if not token:
-        raise HTTPException(status_code=401, detail="Google account not connected. Please connect via Google Services.")
+        raise HTTPException(status_code=403, detail="Google account not connected. Please connect via Google Services.")
 
     async with httpx.AsyncClient(timeout=10.0) as client:
         # Get message list
@@ -110,6 +110,8 @@ async def get_gmail_messages(
             f"https://gmail.googleapis.com/gmail/v1/users/me/messages?maxResults={max_results}&labelIds=INBOX",
             headers={"Authorization": f"Bearer {token}"},
         )
+        if resp.status_code in (401, 403):
+            raise HTTPException(status_code=403, detail="Gmail access not authorized. Please reconnect your Google account.")
         if resp.status_code != 200:
             raise HTTPException(status_code=resp.status_code, detail="Failed to fetch Gmail messages")
 
@@ -150,7 +152,7 @@ async def get_calendar_events(
     """Fetch upcoming calendar events for the authenticated user."""
     token = await _get_valid_token(current_user.user_id)
     if not token:
-        raise HTTPException(status_code=401, detail="Google account not connected. Please connect via Google Services.")
+        raise HTTPException(status_code=403, detail="Google account not connected. Please connect via Google Services.")
 
     from datetime import datetime, timezone
     now = datetime.now(timezone.utc).isoformat()
@@ -166,6 +168,8 @@ async def get_calendar_events(
             },
             headers={"Authorization": f"Bearer {token}"},
         )
+        if resp.status_code in (401, 403):
+            raise HTTPException(status_code=403, detail="Google Calendar access not authorized. Please reconnect your Google account.")
         if resp.status_code != 200:
             raise HTTPException(status_code=resp.status_code, detail="Failed to fetch calendar events")
 
